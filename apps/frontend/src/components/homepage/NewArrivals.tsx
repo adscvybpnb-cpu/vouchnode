@@ -1,0 +1,1 @@
+export function NewArrivals() { return <div>NewArrivals</div>; }

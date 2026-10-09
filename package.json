@@ -1,0 +1,19 @@
+{
+  "name": "vouchnode-marketplace",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --parallel --filter !@vouchnode/shared dev",
+    "build": "pnpm --filter @vouchnode/shared build && pnpm --parallel --filter !@vouchnode/shared build",
+    "test": "pnpm --recursive test",
+    "db:migrate": "pnpm --filter @vouchnode/backend db:migrate",
+    "db:seed": "pnpm --filter @vouchnode/backend db:seed"
+  },
+  "engines": {
+    "node": ">=20.19.0",
+    "pnpm": ">=9.0.0"
+  },
+  "devDependencies": {
+    "pm2": "^7.0.4"
+  }
+}

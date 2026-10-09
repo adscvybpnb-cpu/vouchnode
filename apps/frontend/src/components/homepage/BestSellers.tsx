@@ -1,0 +1,1 @@
+export function BestSellers() { return <div>BestSellers</div>; }

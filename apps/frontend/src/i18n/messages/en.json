@@ -1,0 +1,25 @@
+{
+  "navigation": {
+    "home": "Home",
+    "products": "Market",
+    "categories": "Categories",
+    "login": "Sign In",
+    "register": "Register",
+    "becomeSeller": "Become a Seller",
+    "dashboard": "Dashboard",
+    "logout": "Logout"
+  },
+  "auth": {
+    "login": {
+      "title": "Sign In",
+      "email": "Email Address",
+      "password": "Password"
+    }
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "success": "Success",
+    "save": "Save Changes"
+  }
+}

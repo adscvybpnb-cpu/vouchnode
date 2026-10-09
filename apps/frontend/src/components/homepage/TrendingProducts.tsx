@@ -1,0 +1,1 @@
+export function TrendingProducts() { return <div>TrendingProducts</div>; }

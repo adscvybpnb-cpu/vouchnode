@@ -1,0 +1,1643 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =====================
+// AUTH & USERS
+// =====================
+
+model User {
+  id                      String     @id @default(cuid())
+  referralCode            String?    @unique
+  referredById            String?
+  email                   String     @unique
+  emailVerified           Boolean    @default(false)
+  emailVerificationToken  String?    @unique
+  emailVerificationExpiry DateTime?
+  telegramChatId          String?    @unique
+  tgVerificationToken     String?
+  tgVerificationExpiry    DateTime?
+  tokenVersion            Int        @default(0)
+  passwordHash            String
+  twoFactorSecret         String? // TOTP secret (encrypted)
+  twoFactorEnabled        Boolean    @default(false)
+  failedLoginAttempts     Int        @default(0)
+  lockedUntil             DateTime?
+  riskScore               Int        @default(0) // 0-100
+  riskLevel               RiskLevel  @default(LOW)
+  status                  UserStatus @default(ACTIVE)
+  isOnline                Boolean    @default(false)
+  onlineUntil             DateTime?
+  lastActiveAt            DateTime   @default(now())
+  kycStatus               KycStatus  @default(NOT_SUBMITTED)
+  completedTradesCount    Int        @default(0)
+  totalVolumeUSD          Decimal    @default(0) @db.Decimal(18, 2)
+  positiveFeedback        Int        @default(0)
+  negativeFeedback        Int        @default(0)
+  createdAt               DateTime   @default(now())
+  updatedAt               DateTime   @updatedAt
+  lastLoginAt             DateTime?
+  lastLoginIp             String?
+
+  profile             UserProfile?
+  referredBy          User?                 @relation("UserReferrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referredUsers       User[]                @relation("UserReferrals")
+  referralCommissions ReferralCommission[]  @relation("ReferralCommissionReferrer")
+  referralEarnings    ReferralCommission[]  @relation("ReferralCommissionReferredUser")
+  roles               UserRole[]
+  sessions            Session[]
+  wallets             Wallet[]
+  sellerProfile       Seller?
+  kycRequests         KycRequest[]
+  orders              Order[]           @relation("BuyerOrders")
+  sellerOrders        Order[]           @relation("SellerOrders")
+  tradesAsBuyer       Trade[]           @relation("TradeBuyer")
+  tradesAsSeller      Trade[]           @relation("TradeSeller")
+  swapTransactions    SwapTransaction[]
+  sentMessages        Message[]         @relation("SentMessages")
+  notifications       Notification[]
+  pushSubscriptions   PushSubscription[]
+  reviewsGiven        Review[]          @relation("ReviewsGiven")
+  reviewsReceived     Review[]          @relation("ReviewsReceived")
+  reportsSubmitted    Report[]          @relation("ReportsSubmitted")
+  reportsReceived     Report[]          @relation("ReportsReceived")
+  disputesAsBuyer     Dispute[]         @relation("BuyerDisputes")
+  disputesAsSeller    Dispute[]         @relation("SellerDisputes")
+  auditLogs           AuditLog[]
+  fraudFlags          FraudFlag[]
+  depositSessions     DepositSession[]
+  cryptoDeposits      CryptoDeposit[]
+  buyerConversations  Conversation[]    @relation("BuyerConversations")
+  sellerConversations Conversation[]    @relation("SellerConversations")
+  followers           Follow[]          @relation("UserFollowers")
+  following           Follow[]          @relation("UserFollowing")
+  favoriteListings    FavoriteListing[]
+  savedSearches       SavedSearch[]
+  p2pOffers           P2POffer[]
+  p2pOrdersAsBuyer    P2POrder[]        @relation("P2POrderBuyer")
+  p2pOrdersAsSeller   P2POrder[]        @relation("P2POrderSeller")
+  p2pDisputesAsBuyer  P2PDispute[]      @relation("P2PDisputeBuyer")
+  p2pDisputesAsSeller P2PDispute[]      @relation("P2PDisputeSeller")
+
+  @@index([email])
+  @@index([status])
+  @@index([riskLevel])
+  @@index([referredById])
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+model FavoriteListing {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId])
+}
+
+model SavedSearch {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  query     String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+  PENDING_VERIFICATION
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model UserProfile {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  displayName           String
+  username              String   @unique
+  avatarUrl             String?
+  bio                   String?
+  countryCode           String?
+  countryFlagEmoji      String?
+  liveIpAddress         String?
+  isIdentityVerified    Boolean  @default(false)
+  totalSuccessfulTrades Int      @default(0)
+  successRate           Decimal  @default(0) @db.Decimal(5, 2)
+  avgReleaseMinutes     Int      @default(0)
+  avgPaymentSpeedMins   Int      @default(0)
+  timezone              String?
+  language              String   @default("en")
+  twitterUrl            String?
+  linkedinUrl           String?
+  githubUrl             String?
+  websiteUrl            String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  country Country? @relation(fields: [countryCode], references: [code])
+
+  @@index([username])
+}
+
+model KycRequest {
+  id               String           @id @default(cuid())
+  userId           String
+  status           KycStatus        @default(NOT_SUBMITTED)
+  fullName         String?
+  dateOfBirth      DateTime?
+  address          String?
+  documentType     KycDocumentType?
+  frontDocumentUrl String?
+  backDocumentUrl  String?
+  selfieUrl        String?
+  idCardFront      String?
+  idCardBack       String?
+  selfiePhoto      String?
+  faceMatchScore   Decimal?         @db.Decimal(5, 2)
+  ocrReadable      Boolean?
+  processedAt      DateTime?
+  frontDocumentKey String?
+  backDocumentKey  String?
+  selfieKey        String?
+  reviewedAt       DateTime?
+  reviewedBy       String?
+  rejectionReason  String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+}
+
+enum KycStatus {
+  NOT_SUBMITTED
+  AUTOMATED_VERIFIED
+  PENDING_MANUAL_REVIEW
+  PENDING_ADMIN_REVIEW
+  REJECTED
+  // Legacy values retained for existing applications during migration.
+  PENDING
+  APPROVED
+}
+
+enum KycDocumentType {
+  IDENTITY_CARD
+  PASSPORT
+  DRIVERS_LICENSE
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  refreshToken String   @unique
+  deviceInfo   String?
+  ipAddress    String?
+  userAgent    String?
+  isRevoked    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+  lastUsedAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([refreshToken])
+}
+
+// =====================
+// RBAC
+// =====================
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique // BUYER, SELLER, ADMIN, SUPPORT
+  description String?
+  createdAt   DateTime @default(now())
+
+  userRoles   UserRole[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id          String  @id @default(cuid())
+  name        String  @unique // e.g. "products:create", "admin:users:read"
+  description String?
+
+  rolePermissions RolePermission[]
+}
+
+model UserRole {
+  id        String   @id @default(cuid())
+  userId    String
+  roleId    String
+  grantedAt DateTime @default(now())
+  grantedBy String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, roleId])
+  @@index([userId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+}
+
+// =====================
+// GEO & CURRENCY
+// =====================
+
+model Country {
+  code        String  @id // ISO 3166-1 alpha-2
+  name        String
+  dialCode    String
+  isSupported Boolean @default(true)
+  flagEmoji   String?
+
+  profiles UserProfile[]
+  products Product[]
+}
+
+model Currency {
+  code                 String       @id // USD, BTC, ETH, USDT, LTC
+  name                 String
+  symbol               String
+  type                 CurrencyType
+  network              String? // ERC20, TRC20, etc
+  decimals             Int          @default(8)
+  isActive             Boolean      @default(true)
+  minDeposit           Decimal      @default(0) @db.Decimal(20, 8)
+  minWithdrawal        Decimal      @default(0) @db.Decimal(20, 8)
+  maxWithdrawal        Decimal      @default(0) @db.Decimal(20, 8)
+  withdrawalFeeFixed   Decimal      @default(0) @db.Decimal(20, 8)
+  withdrawalFeePercent Decimal      @default(0) @db.Decimal(5, 2)
+  iconUrl              String?
+
+  wallets         Wallet[]
+  deposits        Deposit[]
+  withdrawals     Withdrawal[]
+  ledgerEntries   LedgerEntry[]
+  walletAddresses WalletAddress[]
+  referralCommissions ReferralCommission[]
+}
+
+enum CurrencyType {
+  CRYPTO
+  FIAT
+}
+
+// =====================
+// CATEGORIES & PRODUCTS
+// =====================
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  iconUrl     String?
+  imageUrl    String?
+  parentId    String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  parent   Category?  @relation("CategoryChildren", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryChildren")
+  products Product[]
+
+  @@index([slug])
+  @@index([parentId])
+}
+
+model Product {
+  id              String        @id @default(cuid())
+  slug            String        @unique
+  name            String
+  description     String
+  categoryId      String
+  sellerId        String
+  brand           String?
+  regionCode      String?
+  originalPrice   Decimal       @db.Decimal(20, 8)
+  currentPrice    Decimal       @db.Decimal(20, 8)
+  stock           Int           @default(0)
+  discountPercent Decimal       @default(0) @db.Decimal(5, 2) // auto-calculated server-side
+  currency        String        @default("USDT")
+  deliveryType    DeliveryType
+  status          ProductStatus @default(PENDING_REVIEW)
+  totalSold       Int           @default(0)
+  viewCount       Int           @default(0)
+  avgRating       Decimal       @default(0) @db.Decimal(3, 2)
+  reviewCount     Int           @default(0)
+  isFeatured      Boolean       @default(false)
+  isTrending      Boolean       @default(false)
+  tags            String[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  category         Category           @relation(fields: [categoryId], references: [id])
+  seller           Seller             @relation(fields: [sellerId], references: [id])
+  region           Country?           @relation(fields: [regionCode], references: [code])
+  images           ProductImage[]
+  inventory        ProductInventory[]
+  orders           Order[]
+  reviews          Review[]
+  reports          Report[]           @relation("ProductReports")
+  favoriteListings FavoriteListing[]
+
+  @@index([slug])
+  @@index([categoryId])
+  @@index([categoryId, brand, originalPrice, status])
+  @@index([sellerId])
+  @@index([status])
+  @@index([currentPrice])
+  @@index([avgRating])
+  @@index([createdAt])
+  @@index([isFeatured])
+  @@index([isTrending])
+  @@index([sellerId, status, createdAt])
+}
+
+enum DeliveryType {
+  INSTANT
+  MANUAL
+}
+
+enum ProductStatus {
+  ACTIVE
+  HIDDEN
+  INACTIVE
+  PENDING_REVIEW
+  REJECTED
+  SOLD
+  SOLD_OUT
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  url       String
+  altText   String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model ProductInventory {
+  id               String    @id @default(cuid())
+  productId        String
+  codeHash         String    @unique
+  encryptedContent String // AES-256-GCM encrypted digital code/content
+  isDelivered      Boolean   @default(false)
+  deliveredAt      DateTime?
+  orderId          String?   @unique
+  createdAt        DateTime  @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  order   Order?  @relation(fields: [orderId], references: [id])
+
+  @@index([productId, isDelivered])
+  @@index([productId, isDelivered, createdAt])
+}
+
+// =====================
+// SELLERS
+// =====================
+
+model Seller {
+  id                String       @id @default(cuid())
+  userId            String       @unique
+  shopName          String       @unique
+  shopSlug          String       @unique
+  description       String?
+  logoUrl           String?
+  bannerUrl         String?
+  status            SellerStatus @default(PENDING)
+  onboardingMode    SellerOnboardingMode @default(SECURE_VERIFICATION)
+  kycSkippedAt      DateTime?
+  verificationLevel Int          @default(0) // 0=unverified, 1=basic, 2=full
+  riskScore         Int          @default(0)
+  commissionRate    Decimal      @default(0) @db.Decimal(5, 2) // override platform default
+
+  // Stats (updated by background job)
+  totalSales               Int     @default(0)
+  completedOrders          Int     @default(0)
+  completedSales           Int     @default(0)
+  disputeRate              Decimal @default(0) @db.Decimal(5, 2)
+  cancellationRate         Decimal @default(0) @db.Decimal(5, 2)
+  avgResponseTime          Int     @default(0) // minutes
+  avgRating                Decimal @default(0) @db.Decimal(3, 2)
+  positiveRatingPercentage Decimal @default(0) @db.Decimal(5, 2)
+  reviewCount              Int     @default(0)
+
+  approvedAt       DateTime?
+  approvedBy       String?
+  rejectedAt       DateTime?
+  rejectionReason  String?
+  suspendedAt      DateTime?
+  suspensionReason String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products Product[]
+  settings SellerSettings?
+
+  @@index([shopSlug])
+  @@index([status])
+}
+
+model P2POffer {
+  id           String   @id @default(cuid())
+  userId       String
+  type         String
+  giftCardType String
+  cryptoAsset  String
+  minLimit     Decimal  @db.Decimal(18, 2)
+  maxLimit     Decimal  @db.Decimal(18, 2)
+  exchangeRate Decimal  @db.Decimal(12, 8)
+  terms        String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders P2POrder[]
+
+  @@index([userId])
+  @@index([type, cryptoAsset, giftCardType])
+  @@index([createdAt])
+}
+
+enum P2POrderStatus {
+  PENDING_PAYMENT
+  PAID_PENDING_VERIFICATION
+  DISPUTED
+  UNPAID
+  PAID
+  PENDING_VERIFICATION
+  COMPLETED
+  CANCELLED
+}
+
+model P2POrder {
+  id                       String         @id @default(cuid())
+  offerId                  String
+  buyerId                  String
+  sellerId                 String
+  cryptoAsset              String
+  cryptoAmount             Decimal        @db.Decimal(30, 18)
+  giftCardValueUSD         Decimal        @default(0) @db.Decimal(18, 2)
+  giftCardRate             Decimal?       @db.Decimal(12, 8)
+  cryptoUsdPrice           Decimal?       @db.Decimal(30, 18)
+  pricingVersion           Int            @default(1)
+  amountUSD                Decimal        @db.Decimal(18, 2)
+  escrowLocked             Boolean        @default(false)
+  status                   P2POrderStatus @default(PENDING_PAYMENT)
+  lockedAt                 DateTime       @default(now())
+  paymentDeadline          DateTime
+  paidAt                   DateTime?
+  paidVerificationDeadline DateTime?
+  disputeEnabledAt         DateTime?
+  cancelledAt              DateTime?
+  completedAt              DateTime?
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+
+  offer        P2POffer      @relation(fields: [offerId], references: [id], onDelete: Restrict)
+  buyer        User          @relation("P2POrderBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  seller       User          @relation("P2POrderSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+  conversation Conversation?
+  reviews      Review[]      @relation("P2POrderReviews")
+  dispute      P2PDispute?
+
+  @@index([offerId])
+  @@index([buyerId, status])
+  @@index([sellerId, status])
+  @@index([status, paymentDeadline])
+  @@index([status, paidVerificationDeadline])
+}
+
+enum P2PDisputeStatus {
+  OPEN
+  RESOLVED
+  RESOLVED_BUYER
+  RESOLVED_SELLER
+  CLOSED
+}
+
+model P2PDispute {
+  id          String           @id @default(cuid())
+  p2pOrderId  String           @unique
+  buyerId     String
+  sellerId    String
+  openedById  String
+  reason      String
+  description String
+  status      P2PDisputeStatus @default(OPEN)
+  resolution  String?
+  resolvedBy  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  order  P2POrder @relation(fields: [p2pOrderId], references: [id], onDelete: Cascade)
+  buyer  User     @relation("P2PDisputeBuyer", fields: [buyerId], references: [id])
+  seller User     @relation("P2PDisputeSeller", fields: [sellerId], references: [id])
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([status])
+}
+
+enum SellerStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  REJECTED
+}
+
+enum SellerOnboardingMode {
+  SECURE_VERIFICATION
+  FAST_LAUNCH
+}
+
+model SellerSettings {
+  sellerId         String   @id
+  autoAcceptOrders Boolean  @default(false)
+  vacationMode     Boolean  @default(false)
+  vacationMessage  String?
+  notifyNewOrders  Boolean  @default(true)
+  notifyMessages   Boolean  @default(true)
+  updatedAt        DateTime @updatedAt
+
+  seller Seller @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+}
+
+// =====================
+// ORDERS
+// =====================
+
+model Order {
+  id             String         @id @default(cuid())
+  orderNumber    String         @unique // human-readable, e.g. GF-20240001
+  buyerId        String
+  sellerId       String
+  productId      String
+  quantity       Int            @default(1)
+  unitPrice      Decimal        @db.Decimal(20, 8) // price at time of order (immutable)
+  totalAmount    Decimal        @db.Decimal(20, 8)
+  platformFee    Decimal        @db.Decimal(20, 8)
+  sellerAmount   Decimal        @db.Decimal(20, 8) // totalAmount - platformFee
+  currency       String         @default("USDT")
+  status         OrderStatus    @default(CREATED)
+  paymentStatus  PaymentStatus  @default(PENDING)
+  deliveryStatus DeliveryStatus @default(PENDING)
+
+  // Server-controlled timers (stored in DB, not browser)
+  sellerResponseDeadline    DateTime?
+  buyerReviewDeadline       DateTime?
+  buyerConfirmationDeadline DateTime?
+  escrowDeadline            DateTime?
+  paymentDeadline           DateTime?
+
+  // Job IDs for cancellation if state changes
+  sellerTimerJobId  String?
+  buyerTimerJobId   String?
+  paymentTimerJobId String?
+
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+  cancelledAt DateTime?
+  isEscalated Boolean   @default(false)
+
+  buyer          User              @relation("BuyerOrders", fields: [buyerId], references: [id])
+  seller         User              @relation("SellerOrders", fields: [sellerId], references: [id])
+  product        Product           @relation(fields: [productId], references: [id])
+  transaction    Transaction?
+  depositSession DepositSession?
+  dispute        Dispute?
+  inventory      ProductInventory?
+  conversation   Conversation?
+  reviews        Review[]
+  referralCommission ReferralCommission?
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([productId])
+  @@index([status])
+  @@index([orderNumber])
+  @@index([createdAt])
+  @@index([productId, paymentStatus, status])
+}
+
+enum OrderStatus {
+  CREATED
+  PAYMENT_PENDING
+  PENDING_MANUAL_REVIEW
+  PAID
+  DELIVERED
+  WAITING_BUYER_CONFIRMATION
+  DISPUTE_OPEN
+  DISPUTED_WAITING_SELLER
+  DISPUTED_WAITING_BUYER
+  ESCALATED_TO_ADMIN
+  COMPLETED
+  REFUNDED
+  CANCELLED
+  EXPIRED
+}
+
+model ReferralCommission {
+  id             String   @id @default(cuid())
+  orderId        String   @unique
+  referrerId     String
+  referredUserId String
+  amount         Decimal  @db.Decimal(20, 8)
+  currency       String   @default("USDT")
+  createdAt      DateTime @default(now())
+
+  order        Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  referrer     User  @relation("ReferralCommissionReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referredUser User  @relation("ReferralCommissionReferredUser", fields: [referredUserId], references: [id], onDelete: Cascade)
+  currency_rel Currency @relation(fields: [currency], references: [code])
+
+  @@index([referrerId, createdAt])
+  @@index([referredUserId])
+}
+
+enum TradeStatus {
+  PENDING
+  ESCROW_LOCKED
+  PAID
+  SUCCESS
+  DISPUTED
+  ESCALATED
+  COMPLETED
+  CANCELLED
+}
+
+model Trade {
+  id             String      @id @default(cuid())
+  buyerId        String
+  sellerId       String
+  amountUSD      Decimal     @db.Decimal(18, 2)
+  cryptoAmount   Decimal     @db.Decimal(20, 8)
+  cryptoType     String
+  status         TradeStatus @default(PENDING)
+  lockedAt       DateTime?
+  escrowUnlockAt DateTime?
+  canEscalateAt  DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  buyer  User @relation("TradeBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  seller User @relation("TradeSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([status])
+  @@index([cryptoType])
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum DeliveryStatus {
+  PENDING
+  PROCESSING
+  DELIVERED
+  FAILED
+}
+
+// =====================
+// TRANSACTIONS & LEDGER
+// =====================
+
+model Transaction {
+  id                    String            @id @default(cuid())
+  orderId               String            @unique
+  buyerId               String
+  sellerId              String
+  amount                Decimal           @db.Decimal(20, 8)
+  currency              String
+  status                TransactionStatus @default(PENDING)
+  cryptoTxHash          String?
+  cryptoNetwork         String?
+  depositAddress        String?
+  providerTxId          String?
+  metadata              Json?             @default("{}")
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  confirmedAt           DateTime?
+  escrowReleaseAt       DateTime?
+  confirmationBlock     BigInt?
+  confirmations         Int               @default(0)
+  requiredConfirmations Int               @default(1)
+  confirmationNetwork   String?
+
+  order            Order             @relation(fields: [orderId], references: [id])
+  ledgerEntries    LedgerEntry[]
+  detectedDeposits DetectedDeposit[]
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([status])
+  @@index([cryptoTxHash])
+  @@index([status, confirmationBlock])
+}
+
+enum TransactionStatus {
+  PENDING
+  CONFIRMING
+  COMPLETED
+  FAILED
+  REFUNDED
+  FROZEN
+  CANCELLED
+}
+
+// Double-entry ledger — every financial event creates paired entries
+model LedgerEntry {
+  id            String       @id @default(cuid())
+  transactionId String?
+  walletId      String
+  type          LedgerType
+  amount        Decimal      @db.Decimal(30, 18)
+  currency      String
+  direction     Direction // CREDIT or DEBIT
+  status        LedgerStatus @default(PENDING)
+  reference     String? // human-readable ref
+  referenceId   String? // orderId, disputeId, etc.
+  description   String?
+  metadata      Json?        @default("{}")
+  createdAt     DateTime     @default(now()) // immutable
+  completedAt   DateTime?
+
+  transaction  Transaction? @relation(fields: [transactionId], references: [id])
+  wallet       Wallet       @relation(fields: [walletId], references: [id])
+  currency_rel Currency     @relation(fields: [currency], references: [code])
+
+  @@index([walletId])
+  @@index([transactionId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum LedgerType {
+  DEPOSIT
+  WITHDRAWAL
+  PURCHASE
+  SALE
+  REFUND
+  FEE
+  SWAP
+  ESCROW_HOLD
+  ESCROW_RELEASE
+  ESCROW_REFUND
+  REFERRAL_COMMISSION
+  ADJUSTMENT
+}
+
+enum Direction {
+  CREDIT
+  DEBIT
+}
+
+enum LedgerStatus {
+  PENDING
+  COMPLETED
+  REFUNDED
+  FROZEN
+  CANCELLED
+}
+
+// =====================
+// WALLETS
+// =====================
+
+model Wallet {
+  id               String   @id @default(cuid())
+  userId           String
+  currency         String
+  walletType       String   @default("INTERNAL")
+  network          String?
+  availableBalance Decimal  @default(0) @db.Decimal(30, 18)
+  pendingBalance   Decimal  @default(0) @db.Decimal(20, 8) // escrow/in-flight
+  frozenBalance    Decimal  @default(0) @db.Decimal(20, 8) // disputed
+  escrowBalance    Decimal  @default(0) @db.Decimal(30, 18) // active swap/trade lock
+  BTC_balance      Decimal  @default(0) @db.Decimal(20, 8)
+  USDT_balance     Decimal  @default(0) @db.Decimal(20, 8)
+  LTC_balance      Decimal  @default(0) @db.Decimal(20, 8)
+  BTC_escrow       Decimal  @default(0) @db.Decimal(20, 8)
+  USDT_escrow      Decimal  @default(0) @db.Decimal(20, 8)
+  LTC_escrow       Decimal  @default(0) @db.Decimal(20, 8)
+  isPrimary        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currency_rel     Currency          @relation(fields: [currency], references: [code])
+  addresses        WalletAddress[]
+  ledgerEntries    LedgerEntry[]
+  deposits         Deposit[]
+  withdrawals      Withdrawal[]
+  detectedDeposits DetectedDeposit[]
+
+  @@unique([userId, currency])
+  @@index([userId])
+}
+
+model AdminWallet {
+  id            String   @id @default(cuid())
+  currency      String
+  network       String   @default("mainnet")
+  address       String
+  isActive      Boolean  @default(true)
+  lastRotatedAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([currency, network, address])
+  @@index([currency, network, isActive])
+}
+
+model SwapTransaction {
+  id             String     @id @default(cuid())
+  userId         String
+  fromCurrency   String
+  toCurrency     String
+  amount         Decimal    @db.Decimal(30, 18)
+  expectedAmount Decimal?   @db.Decimal(30, 18)
+  feeAmount      Decimal?   @db.Decimal(30, 18)
+  lockedFromRate Decimal?   @db.Decimal(30, 18)
+  lockedToRate   Decimal?   @db.Decimal(30, 18)
+  quoteExpiresAt DateTime?
+  status         SwapStatus @default(PENDING)
+  availableAt    DateTime
+  completedAt    DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([status, availableAt])
+}
+
+enum SwapStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model WalletAddress {
+  id        String   @id @default(cuid())
+  walletId  String
+  currency  String
+  network   String?
+  address   String
+  label     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  wallet       Wallet    @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  currency_rel Currency  @relation(fields: [currency], references: [code])
+  deposits     Deposit[]
+
+  @@unique([address, currency, network])
+  @@index([walletId])
+  @@index([address])
+}
+
+model Deposit {
+  id                    String        @id @default(cuid())
+  walletId              String
+  currency              String
+  network               String?
+  amount                Decimal?      @db.Decimal(20, 8) // null until confirmed
+  expectedAmount        Decimal?      @db.Decimal(20, 8)
+  addressId             String?
+  depositAddress        String
+  cryptoTxHash          String?
+  status                DepositStatus @default(WAITING)
+  providerRef           String? // provider-specific reference
+  confirmations         Int           @default(0)
+  requiredConfirmations Int           @default(3)
+  metadata              Json?         @default("{}")
+  expiresAt             DateTime?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  confirmedAt           DateTime?
+
+  wallet       Wallet         @relation(fields: [walletId], references: [id])
+  currency_rel Currency       @relation(fields: [currency], references: [code])
+  address      WalletAddress? @relation(fields: [addressId], references: [id])
+
+  @@index([walletId])
+  @@index([cryptoTxHash])
+  @@index([status])
+  @@index([depositAddress])
+}
+
+model DepositSession {
+  id              String                @id @default(cuid())
+  userId          String
+  orderId         String?               @unique
+  currency        String                @default("USDT")
+  assignedAddress String
+  network         DepositSessionNetwork
+  status          DepositSessionStatus  @default(PENDING)
+  amount          Decimal               @default(0) @db.Decimal(30, 18)
+  usdAmount       Decimal               @default(0) @db.Decimal(18, 2)
+  exchangeRate    Decimal               @default(1) @db.Decimal(30, 18)
+  transactionHash String?               @unique
+  completedAt     DateTime?
+  expiresAt       DateTime              @default(dbgenerated("CURRENT_TIMESTAMP + interval '1 hour'"))
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order            Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  detectedDeposits DetectedDeposit[]
+
+  @@index([userId, status])
+  @@index([orderId])
+  @@index([assignedAddress, network])
+  @@index([status, expiresAt])
+}
+
+model CryptoDeposit {
+  id          String              @id @default(cuid())
+  userId      String
+  address     String
+  walletIndex Int
+  currency    String
+  network     String
+  amount      Decimal             @db.Decimal(30, 18)
+  status      CryptoDepositStatus @default(PENDING)
+  createdAt   DateTime            @default(now())
+  expiresAt   DateTime            @default(dbgenerated("CURRENT_TIMESTAMP + interval '1 hour'"))
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([walletIndex, network])
+  @@unique([address, network])
+  @@index([userId, status])
+  @@index([status, expiresAt])
+}
+
+model StaticAddressPool {
+  id        String              @id @default(cuid())
+  asset     String
+  address   String              @unique
+  status    StaticAddressStatus @default(AVAILABLE)
+  orderId   String?
+  expiresAt DateTime?
+
+  @@index([asset, status])
+  @@index([orderId])
+}
+
+enum StaticAddressStatus {
+  AVAILABLE
+  BUSY
+}
+
+enum CryptoDepositStatus {
+  PENDING
+  SUCCESS
+  EXPIRED
+  CANCELLED
+}
+
+model WalletDerivationCounter {
+  id        Int      @id
+  nextIndex Int      @default(10)
+  updatedAt DateTime @updatedAt
+}
+
+enum DepositSessionNetwork {
+  BTC
+  BCH
+  LTC
+  TRC20
+  BEP20
+  ERC20
+  POLYGON
+  ARBITRUM_ONE
+  BASE
+  OPTIMISM
+  SOLANA
+  TON
+}
+
+enum DepositSessionStatus {
+  PENDING
+  COMPLETED
+  EXPIRED
+  CANCELLED
+}
+
+enum DepositStatus {
+  WAITING
+  CONFIRMING
+  CONFIRMED
+  FAILED
+  EXPIRED
+}
+
+model BlockCursor {
+  id                 String                @id @default(cuid())
+  network            DepositSessionNetwork @unique
+  chainId            String?
+  nextBlock          BigInt
+  lastProcessedBlock BigInt?
+  observedTip        BigInt?
+  status             BlockCursorStatus     @default(ACTIVE)
+  leaseOwner         String?
+  leaseExpiresAt     DateTime?
+  lastSuccessAt      DateTime?
+  lastErrorAt        DateTime?
+  lastError          String?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  @@index([status, leaseExpiresAt])
+  @@index([status, nextBlock])
+}
+
+enum BlockCursorStatus {
+  ACTIVE
+  PAUSED
+  ERROR
+  BACKFILLING
+}
+
+model DetectedDeposit {
+  id                    String                @id @default(cuid())
+  eventKey              String                @unique
+  network               DepositSessionNetwork
+  chainId               String?
+  asset                 String
+  tokenContract         String?
+  tokenDecimals         Int?
+  transactionHash       String
+  eventIndex            Int                   @default(-1)
+  blockNumber           BigInt?
+  blockHash             String?
+  slot                  BigInt?
+  destination           String
+  amount                Decimal               @db.Decimal(30, 18)
+  expectedAmount        Decimal?              @db.Decimal(30, 18)
+  status                DetectedDepositStatus @default(PENDING)
+  confirmations         Int                   @default(0)
+  requiredConfirmations Int                   @default(1)
+  detectedAt            DateTime              @default(now())
+  confirmedAt           DateTime?
+  settledAt             DateTime?
+  rejectedAt            DateTime?
+  lastCheckedAt         DateTime?
+  lastError             String?
+  depositSessionId      String?
+  transactionId         String?
+  walletId              String?
+  metadata              Json?                 @default("{}")
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  depositSession DepositSession? @relation(fields: [depositSessionId], references: [id], onDelete: SetNull)
+  transaction    Transaction?    @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  wallet         Wallet?         @relation(fields: [walletId], references: [id], onDelete: SetNull)
+
+  @@unique([network, transactionHash, eventIndex])
+  @@index([network, status, blockNumber])
+  @@index([network, transactionHash])
+  @@index([destination, status])
+  @@index([depositSessionId, status])
+  @@index([transactionId, status])
+  @@index([status, lastCheckedAt])
+}
+
+enum DetectedDepositStatus {
+  PENDING
+  DETECTED
+  CONFIRMING
+  CONFIRMED
+  SETTLING
+  SETTLED
+  FAILED
+  REJECTED
+  REORGED
+  MANUAL_REVIEW
+}
+
+model Withdrawal {
+  id                 String           @id @default(cuid())
+  walletId           String
+  currency           String
+  network            String?
+  amount             Decimal          @db.Decimal(20, 8)
+  fee                Decimal          @default(0) @db.Decimal(20, 8)
+  netAmount          Decimal          @db.Decimal(20, 8) // amount - fee
+  destinationAddress String
+  status             WithdrawalStatus @default(PENDING)
+  cryptoTxHash       String?
+  providerRef        String?
+  adminNote          String?
+  riskScore          Int              @default(0)
+  requiresReview     Boolean          @default(false)
+  reviewedBy         String?
+  reviewedAt         DateTime?
+  metadata           Json?            @default("{}")
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  processedAt        DateTime?
+
+  wallet       Wallet   @relation(fields: [walletId], references: [id])
+  currency_rel Currency @relation(fields: [currency], references: [code])
+
+  @@index([walletId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum WithdrawalStatus {
+  PENDING
+  UNDER_REVIEW
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+// =====================
+// DISPUTES
+// =====================
+
+model Dispute {
+  id             String          @id @default(cuid())
+  disputeNumber  String          @unique // GFD-20240001
+  orderId        String          @unique
+  buyerId        String
+  sellerId       String
+  reason         String
+  description    String
+  status         DisputeStatus   @default(OPEN)
+  resolution     String?
+  resolutionType ResolutionType?
+  resolvedBy     String? // admin user id
+  resolvedAt     DateTime?
+  escalatedAt    DateTime?
+  frozenAmount   Decimal?        @db.Decimal(20, 8)
+
+  // Deadlines (server-controlled)
+  sellerResponseDeadline DateTime?
+  buyerResponseDeadline  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order    Order             @relation(fields: [orderId], references: [id])
+  buyer    User              @relation("BuyerDisputes", fields: [buyerId], references: [id])
+  seller   User              @relation("SellerDisputes", fields: [sellerId], references: [id])
+  messages DisputeMessage[]
+  evidence DisputeEvidence[]
+  timeline DisputeTimeline[]
+
+  @@index([orderId])
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([status])
+}
+
+enum DisputeStatus {
+  OPEN
+  AWAITING_SELLER
+  AWAITING_BUYER
+  ESCALATED
+  RESOLVED_BUYER
+  RESOLVED_SELLER
+  CLOSED
+}
+
+enum ResolutionType {
+  REFUND_BUYER
+  RELEASE_SELLER
+  PARTIAL
+  CANCELLED
+}
+
+model DisputeMessage {
+  id         String   @id @default(cuid())
+  disputeId  String
+  senderId   String
+  senderType String // BUYER, SELLER, ADMIN
+  content    String   @db.Text
+  isInternal Boolean  @default(false) // admin-only notes
+  createdAt  DateTime @default(now())
+
+  dispute Dispute @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+
+  @@index([disputeId])
+}
+
+model DisputeEvidence {
+  id          String   @id @default(cuid())
+  disputeId   String
+  uploadedBy  String
+  fileUrl     String
+  fileName    String
+  fileType    String
+  fileSize    Int
+  description String?
+  createdAt   DateTime @default(now())
+
+  dispute Dispute @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+
+  @@index([disputeId])
+}
+
+model DisputeTimeline {
+  id          String   @id @default(cuid())
+  disputeId   String
+  actorId     String?
+  actorType   String
+  action      String
+  description String?
+  metadata    Json?    @default("{}")
+  createdAt   DateTime @default(now()) // immutable
+
+  dispute Dispute @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+
+  @@index([disputeId])
+}
+
+// =====================
+// MESSAGING
+// =====================
+
+model Conversation {
+  id            String    @id @default(cuid())
+  orderId       String?   @unique
+  p2pOrderId    String?   @unique
+  productId     String?
+  buyerId       String
+  sellerId      String
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastMessageAt DateTime?
+
+  order    Order?    @relation(fields: [orderId], references: [id])
+  p2pOrder P2POrder? @relation(fields: [p2pOrderId], references: [id], onDelete: Cascade)
+  buyer    User      @relation("BuyerConversations", fields: [buyerId], references: [id], onDelete: Cascade)
+  seller   User      @relation("SellerConversations", fields: [sellerId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([orderId])
+}
+
+model Message {
+  id             String            @id @default(cuid())
+  conversationId String
+  senderId       String
+  content        String?           @db.Text
+  imageUrl       String?
+  fileUrl        String?
+  messageType    MessageType       @default(TEXT)
+  visibility     MessageVisibility @default(EVERYONE)
+  isRead         Boolean           @default(false)
+  readAt         DateTime?
+  isDeleted      Boolean           @default(false)
+  createdAt      DateTime          @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation("SentMessages", fields: [senderId], references: [id])
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([createdAt])
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  SYSTEM
+}
+
+enum MessageVisibility {
+  EVERYONE
+  ADMIN_ONLY
+}
+
+// =====================
+// REVIEWS
+// =====================
+
+model Review {
+  id         String   @id @default(cuid())
+  orderId    String?  @unique // legacy marketplace order
+  productId  String? // legacy marketplace product
+  p2pOrderId String?
+  buyerId    String
+  sellerId   String
+  rating     Int // 1-5
+  title      String?
+  content    String?
+  isVerified Boolean  @default(true) // verified purchase
+  isVisible  Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  order    Order?    @relation(fields: [orderId], references: [id])
+  product  Product?  @relation(fields: [productId], references: [id])
+  p2pOrder P2POrder? @relation("P2POrderReviews", fields: [p2pOrderId], references: [id], onDelete: Cascade)
+  reviewer User      @relation("ReviewsGiven", fields: [buyerId], references: [id])
+  reviewee User      @relation("ReviewsReceived", fields: [sellerId], references: [id])
+
+  @@unique([p2pOrderId, buyerId])
+  @@index([productId])
+  @@index([sellerId])
+  @@index([buyerId])
+  @@index([rating])
+}
+
+// =====================
+// REPORTS
+// =====================
+
+model Report {
+  id             String       @id @default(cuid())
+  reporterID     String
+  reportedUserId String?
+  targetType     ReportType
+  targetId       String
+  productId      String?
+  reason         String
+  description    String?
+  status         ReportStatus @default(PENDING)
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  resolution     String?
+  createdAt      DateTime     @default(now())
+
+  reporter     User     @relation("ReportsSubmitted", fields: [reporterID], references: [id])
+  reportedUser User?    @relation("ReportsReceived", fields: [reportedUserId], references: [id])
+  product      Product? @relation("ProductReports", fields: [productId], references: [id])
+
+  @@index([targetType, targetId])
+  @@index([status])
+  @@index([reporterID])
+}
+
+enum ReportType {
+  PRODUCT
+  SELLER
+  BUYER
+  FRAUD
+  MESSAGE
+}
+
+enum ReportStatus {
+  PENDING
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+// =====================
+// NOTIFICATIONS
+// =====================
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String           @default("")
+  body      String
+  data      Json?            @default("{}")
+  link      String?
+  dedupeKey String?
+  expiresAt DateTime?
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@index([userId, dedupeKey])
+  @@index([expiresAt])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique @db.Text
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lastUsedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model SupportTicket {
+  id            String              @id @default(cuid())
+  ticketNumber  String              @unique
+  name          String
+  email         String
+  subject       String
+  message       String
+  attachmentUrl String?
+  status        SupportTicketStatus @default(OPEN)
+  createdAt     DateTime            @default(now())
+
+  @@index([email, createdAt])
+  @@index([status, createdAt])
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum NotificationType {
+  KYC
+  SYSTEM
+  ORDER_NEW
+  ORDER_UPDATE
+  ORDER_COMPLETED
+  PAYMENT_RECEIVED
+  PAYMENT_FAILED
+  WITHDRAWAL_PROCESSED
+  WITHDRAWAL_FAILED
+  DEPOSIT_CONFIRMED
+  DISPUTE_OPENED
+  DISPUTE_UPDATE
+  DISPUTE_RESOLVED
+  MESSAGE_NEW
+  SECURITY_ALERT
+  VERIFICATION
+  SELLER_APPROVED
+  SELLER_REJECTED
+  PRODUCT_STATUS
+  ACCOUNT_SUSPENDED
+  REVIEW_RECEIVED
+  REPORT_UPDATE
+  WALLET_TRANSACTION
+  SALE_NEW
+  ADMIN_BROADCAST
+  REFERRAL_COMMISSION
+}
+
+// =====================
+// FRAUD & SECURITY
+// =====================
+
+model FraudFlag {
+  id          String        @id @default(cuid())
+  userId      String?
+  orderId     String?
+  type        FraudFlagType
+  severity    RiskLevel
+  description String
+  metadata    Json?         @default("{}")
+  isResolved  Boolean       @default(false)
+  resolvedBy  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime      @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([orderId])
+  @@index([type])
+  @@index([isResolved])
+}
+
+enum FraudFlagType {
+  SUSPICIOUS_LOGIN
+  MULTIPLE_FAILED_LOGINS
+  TRANSACTION_VELOCITY
+  SUSPICIOUS_WITHDRAWAL
+  MULTIPLE_ACCOUNTS
+  CHARGEBACK_RISK
+  FAKE_DISPUTE
+  HIGH_RISK_TRANSACTION
+  DEVICE_MISMATCH
+  IP_MISMATCH
+  MANUAL_FLAG
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorType  String   @default("USER") // USER, SYSTEM, ADMIN
+  action     String // e.g. "user.login", "order.status_change", "wallet.withdrawal"
+  entityType String? // "Order", "User", "Wallet"
+  entityId   String?
+  before     Json? // state before action
+  after      Json? // state after action
+  ipAddress  String?
+  userAgent  String?
+  metadata   Json?    @default("{}")
+  createdAt  DateTime @default(now()) // append-only, never updated
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+// =====================
+// SYSTEM SETTINGS
+// =====================
+
+model SystemSetting {
+  key         String      @id
+  value       String
+  type        SettingType @default(STRING)
+  group       String      @default("general")
+  description String?
+  updatedAt   DateTime    @updatedAt
+  updatedBy   String?
+}
+
+enum SettingType {
+  STRING
+  NUMBER
+  BOOLEAN
+  JSON
+}

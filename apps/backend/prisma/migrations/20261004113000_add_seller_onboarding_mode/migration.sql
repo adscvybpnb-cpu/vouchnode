@@ -1,0 +1,5 @@
+CREATE TYPE "SellerOnboardingMode" AS ENUM ('SECURE_VERIFICATION', 'FAST_LAUNCH');
+
+ALTER TABLE "Seller"
+ADD COLUMN "onboardingMode" "SellerOnboardingMode" NOT NULL DEFAULT 'SECURE_VERIFICATION',
+ADD COLUMN "kycSkippedAt" TIMESTAMP(3);

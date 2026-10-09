@@ -1,0 +1,7 @@
+{
+  "extends": ["next/core-web-vitals"],
+  "ignorePatterns": [
+    "src/create_files.js",
+    "src/create_remaining_files*.js"
+  ]
+}

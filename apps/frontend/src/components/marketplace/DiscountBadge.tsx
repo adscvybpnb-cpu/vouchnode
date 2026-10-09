@@ -1,0 +1,1 @@
+export function DiscountBadge() { return <div>DiscountBadge</div>; }

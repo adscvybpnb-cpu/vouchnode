@@ -1,0 +1,5 @@
+ALTER TABLE "DepositSession"
+  ALTER COLUMN "amount" TYPE DECIMAL(30,18);
+
+ALTER TABLE "CryptoDeposit"
+  ALTER COLUMN "amount" TYPE DECIMAL(30,18);

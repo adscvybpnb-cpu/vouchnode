@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" role="img" aria-label="Digital marketplace artwork">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset=".5" stop-color="#123b4a"/>
+      <stop offset="1" stop-color="#172554"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="1" stop-color="#38bdf8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="700" fill="url(#bg)"/>
+  <circle cx="930" cy="150" r="190" fill="#22d3ee" opacity=".16"/>
+  <circle cx="250" cy="580" r="260" fill="#34d399" opacity=".12"/>
+  <path d="M0 540C190 430 320 610 510 490s300-20 690-210v420H0Z" fill="#020617" opacity=".72"/>
+  <g fill="none" stroke="url(#glow)" stroke-width="10" opacity=".8">
+    <path d="M310 190h330l100 100-100 100H310l-100-100Z"/>
+    <path d="M370 245h210M350 290h250M370 335h210"/>
+  </g>
+  <circle cx="790" cy="350" r="56" fill="#f59e0b" opacity=".8"/>
+  <path d="M790 315v70M765 335h34a17 17 0 0 1 0 34h-34 30a17 17 0 0 1 0 34h-30" fill="none" stroke="#fff" stroke-linecap="round" stroke-width="8"/>
+</svg>

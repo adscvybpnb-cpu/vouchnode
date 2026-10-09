@@ -1,0 +1,1 @@
+ALTER TYPE "DepositSessionStatus" ADD VALUE 'CANCELLED';
