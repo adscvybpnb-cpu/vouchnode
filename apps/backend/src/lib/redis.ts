@@ -4,7 +4,7 @@ import { logger } from './logger';
 
 export const redis = new Redis(config.redis.url, {
   maxRetriesPerRequest: null,
-  enableReadyCheck: true,
+  enableReadyCheck: false,
   retryStrategy: (attempt) => Math.min(attempt * 250, 5000),
   reconnectOnError: (error) => /READONLY|ECONNRESET|ETIMEDOUT/i.test(error.message),
 });
