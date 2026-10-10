@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "pnpm --parallel --filter !@vouchnode/shared dev",
-    "build": "pnpm --filter @vouchnode/backend exec prisma generate && pnpm --filter @vouchnode/backend build",
+    "build": "pnpm --filter @vouchnode/backend exec prisma generate && pnpm --filter @vouchnode/shared build && pnpm --filter @vouchnode/backend build",
     "start": "pnpm --filter @vouchnode/backend start",
     "test": "pnpm --recursive test",
     "db:migrate": "pnpm --filter @vouchnode/backend db:migrate",
