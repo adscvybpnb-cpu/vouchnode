@@ -2,7 +2,13 @@ import Redis from 'ioredis';
 import { config } from '../config';
 import { logger } from './logger';
 
-export const redis = new Redis(config.redis.url, {
+const redisUrl = new URL(config.redis.url);
+
+export const redis = new Redis({
+  host: redisUrl.hostname,
+  port: Number(redisUrl.port) || 6379,
+  password: redisUrl.password || undefined,
+  family: 4,
   maxRetriesPerRequest: null,
   enableReadyCheck: false,
   tls: {
