@@ -11,9 +11,7 @@ export const redis = new Redis({
   family: 4,
   maxRetriesPerRequest: null,
   enableReadyCheck: false,
-  tls: {
-    rejectUnauthorized: false
-  },
+  tls: config.redis.url.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined,
   retryStrategy: (attempt) => Math.min(attempt * 250, 5000),
   reconnectOnError: (error) => /READONLY|ECONNRESET|ETIMEDOUT/i.test(error.message),
 });
