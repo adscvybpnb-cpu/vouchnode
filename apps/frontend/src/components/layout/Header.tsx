@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Menu, Search, Wallet } from 'lucide-react';
+import { ChevronDown, Search, Wallet } from 'lucide-react';
 import { apiClient } from '@/services/api.client';
 import { hasUsableAccessToken, useAuthStore } from '@/store/auth.store';
 import { useToast } from '@/hooks/use-toast';
@@ -39,7 +39,7 @@ function VouchNodeLogo({ logoUrl }: { logoUrl?: string }) {
   );
 }
 
-export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
+export function Header() {
   const router = useRouter();
   const { accessToken, user, isAuthenticated, clearAuth } = useAuthStore();
   const hasSession = isAuthenticated && hasUsableAccessToken(accessToken);
@@ -134,17 +134,6 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     >
       <div className="mx-auto flex h-20 min-w-0 max-w-7xl items-center justify-between gap-2 px-3 sm:gap-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-          {onMenuClick && (
-            <button
-              type="button"
-              aria-label="Open navigation"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white lg:hidden"
-              onClick={onMenuClick}
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-          )}
-
           <Link href="/" className="flex shrink-0 items-center gap-2.5">
             <VouchNodeLogo logoUrl={logoUrl} />
             <span translate="no" className="notranslate hidden truncate text-lg font-bold tracking-tight text-white sm:inline">
