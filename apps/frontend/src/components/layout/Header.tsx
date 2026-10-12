@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Menu, Search, Wallet } from 'lucide-react';
 import { apiClient } from '@/services/api.client';
 import { hasUsableAccessToken, useAuthStore } from '@/store/auth.store';
@@ -45,6 +45,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const hasSession = isAuthenticated && hasUsableAccessToken(accessToken);
   const { toast } = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuHoveredByMouse = useRef(false);
   const [isCheckingSellerStatus, setIsCheckingSellerStatus] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [logoUrl, setLogoUrl] = useState('/favicon.svg');
@@ -191,15 +192,31 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
               <div
                 className="relative"
-                onMouseEnter={() => setMenuOpen(true)}
-                onMouseLeave={() => setMenuOpen(false)}
+                onPointerEnter={(event) => {
+                  if (event.pointerType === 'mouse') {
+                    menuHoveredByMouse.current = true;
+                    setMenuOpen(true);
+                  }
+                }}
+                onPointerLeave={(event) => {
+                  if (event.pointerType === 'mouse') {
+                    menuHoveredByMouse.current = false;
+                    setMenuOpen(false);
+                  }
+                }}
               >
                 <button
+                  type="button"
                   className="flex cursor-pointer items-center gap-2 rounded-lg p-1 transition-colors hover:bg-white/5"
                   aria-expanded={menuOpen}
                   aria-label="Open profile menu"
-                  onMouseEnter={() => setMenuOpen(true)}
-                  onClick={() => router.push('/dashboard/profile')}
+                  onClick={() => {
+                    if (menuHoveredByMouse.current) {
+                      setMenuOpen(true);
+                      return;
+                    }
+                    setMenuOpen((open) => !open);
+                  }}
                 >
                   <div
                     translate="no"
