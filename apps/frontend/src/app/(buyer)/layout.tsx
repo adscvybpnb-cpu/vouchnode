@@ -1,15 +1,14 @@
 'use client';
-import { useEffect, useState } from 'react';
+
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth.store';
 import { Header } from '@/components/layout/Header';
-import { DashboardSidebar } from '@/components/layout/DashboardSidebar';
 import { TelegramVerificationBanner } from '@/components/layout/TelegramVerificationBanner';
 
 export default function BuyerLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, hasHydrated } = useAuthStore();
   const router = useRouter();
-  const [navigationOpen, setNavigationOpen] = useState(false);
 
   useEffect(() => {
     if (hasHydrated && !isAuthenticated) {
@@ -39,9 +38,8 @@ export default function BuyerLayout({ children }: { children: React.ReactNode })
 
   return (
     <>
-      <Header onMenuClick={() => setNavigationOpen(true)} />
+      <Header />
       <TelegramVerificationBanner />
-      <DashboardSidebar open={navigationOpen} onClose={() => setNavigationOpen(false)} />
       <main className="min-h-[calc(100vh-4rem)] min-w-0 overflow-x-hidden bg-background p-4 sm:p-6 lg:p-8">
         {children}
       </main>
