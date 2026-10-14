@@ -96,7 +96,9 @@ export const config = {
       secretKey: env.S3_SECRET_KEY,
       region: env.S3_REGION,
       publicUrl: env.S3_PUBLIC_URL
-    }
+    },
+    cloudinary: { url: env.CLOUDINARY_URL },
+    kycMediaProxySecret: env.KYC_MEDIA_PROXY_SECRET,
   },
   crypto: {
     provider: env.CRYPTO_PROVIDER,
