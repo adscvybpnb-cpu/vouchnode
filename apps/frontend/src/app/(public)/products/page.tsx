@@ -38,14 +38,14 @@ function ProductsContent() {
     ?? { name: 'All Products', slug: 'all' };
 
   return (
-    <ProductSearchResults
+      <ProductSearchResults
       activeCategory={activeCategory.name}
       activeCategorySlug={activeCategory.slug}
       products={data?.data || []}
       isLoading={isLoading}
       total={data?.total ?? 0}
+      totalPages={data?.totalPages ?? Math.max(1, Math.ceil((data?.total ?? 0) / (filters.limit ?? 20)))}
     />
-  );
 }
 
 export default function ProductsPage() {
