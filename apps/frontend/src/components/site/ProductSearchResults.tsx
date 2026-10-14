@@ -74,7 +74,19 @@ export function ProductSearchResults({
   }
   if (lastVisiblePage < totalPages - 1) paginationItems.push('ellipsis');
   if (totalPages > 1) paginationItems.push(totalPages);
+
+  useEffect(() => {
+    setDraftFilters(currentFilters);
+  }, [currentFilters]);
+
+  const navigateWithParams = (params: URLSearchParams) => {
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+
+  useEffect(() => {
     if (searchParams.has('category')) return;
+
     const params = new URLSearchParams(queryString);
     params.set('category', 'gift-cards');
     navigateWithParams(params);
@@ -98,7 +110,9 @@ export function ProductSearchResults({
       ['minPrice', draftFilters.minPrice, currentFilters.minPrice],
       ['maxPrice', draftFilters.maxPrice, currentFilters.maxPrice],
     ];
+
     if (delayedValues.every(([, value, current]) => value === current)) return;
+
     const timer = window.setTimeout(() => {
       const params = new URLSearchParams(queryString);
       for (const [param, value] of delayedValues) {
@@ -108,8 +122,17 @@ export function ProductSearchResults({
       params.delete('page');
       navigateWithParams(params);
     }, 300);
+
     return () => window.clearTimeout(timer);
-  }, [draftFilters.search, draftFilters.minPrice, draftFilters.maxPrice, currentFilters.search, currentFilters.minPrice, currentFilters.maxPrice, queryString]);
+  }, [
+    draftFilters.search,
+    draftFilters.minPrice,
+    draftFilters.maxPrice,
+    currentFilters.search,
+    currentFilters.minPrice,
+    currentFilters.maxPrice,
+    queryString,
+  ]);
 
   const clearFilters = () => {
     setDraftFilters(emptyFilters);
@@ -147,29 +170,69 @@ export function ProductSearchResults({
         <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
             <p className="text-[11px] uppercase tracking-[0.22em] text-cyan-300">Marketplace</p>
-            <h1 className="mt-1 truncate text-2xl font-black tracking-[-0.04em] text-white sm:mt-2 sm:text-3xl">{activeCategory}</h1>
+            <h1 className="mt-1 truncate text-2xl font-black tracking-[-0.04em] text-white sm:mt-2 sm:text-3xl">
+              {activeCategory}
+            </h1>
           </div>
           <p className="text-xs text-slate-400 sm:text-right">Discover digital goods from verified sellers</p>
         </div>
       </div>
 
-      <nav aria-label="Marketplace categories" className="mb-4 flex min-w-0 gap-2 overflow-x-auto overscroll-x-contain pb-2 [scrollbar-width:thin] lg:hidden">
-        <button type="button" onClick={() => changeCategory('all')} className={`shrink-0 rounded-full border px-3.5 py-2 text-xs font-semibold transition sm:text-sm ${currentFilters.category === 'all' ? 'border-cyan-400/60 bg-cyan-400/10 text-cyan-100' : 'border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.07]'}`}>All</button>
+      <nav
+        aria-label="Marketplace categories"
+        className="mb-4 flex min-w-0 gap-2 overflow-x-auto overscroll-x-contain pb-2 [scrollbar-width:thin] lg:hidden"
+      >
+        <button
+          type="button"
+          onClick={() => changeCategory('all')}
+          className={`shrink-0 rounded-full border px-3.5 py-2 text-xs font-semibold transition sm:text-sm ${
+            currentFilters.category === 'all'
+              ? 'border-cyan-400/60 bg-cyan-400/10 text-cyan-100'
+              : 'border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.07]'
+          }`}
+        >
+          All
+        </button>
         {marketplaceCategories.map((category) => (
-          <button key={category.id} type="button" onClick={() => changeCategory(category.slug)} className={`shrink-0 rounded-full border px-3.5 py-2 text-xs font-semibold transition sm:text-sm ${currentFilters.category === category.slug ? 'border-cyan-400/60 bg-cyan-400/10 text-cyan-100' : 'border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.07]'}`}>
-            <span className="mr-1.5">{category.icon}</span>{category.name}
+          <button
+            key={category.id}
+            type="button"
+            onClick={() => changeCategory(category.slug)}
+            className={`shrink-0 rounded-full border px-3.5 py-2 text-xs font-semibold transition sm:text-sm ${
+              currentFilters.category === category.slug
+                ? 'border-cyan-400/60 bg-cyan-400/10 text-cyan-100'
+                : 'border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.07]'
+            }`}
+          >
+            <span className="mr-1.5">{category.icon}</span>
+            {category.name}
           </button>
         ))}
       </nav>
 
       <div className="mb-4 flex min-w-0 flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-[#0a1017] p-2.5 sm:gap-3 sm:p-3">
-        <button type="button" onClick={() => setFiltersOpen(true)} className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm font-semibold text-slate-200 transition hover:border-cyan-400/40 hover:bg-cyan-400/5">
-          <SlidersHorizontal className="h-4 w-4 text-cyan-300" /> Filters
-          {filterCount > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-cyan-400 px-1 text-[10px] font-black text-slate-950">{filterCount}</span>}
+        <button
+          type="button"
+          onClick={() => setFiltersOpen(true)}
+          className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm font-semibold text-slate-200 transition hover:border-cyan-400/40 hover:bg-cyan-400/5"
+        >
+          <SlidersHorizontal className="h-4 w-4 text-cyan-300" />
+          Filters
+          {filterCount > 0 && (
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-cyan-400 px-1 text-[10px] font-black text-slate-950">
+              {filterCount}
+            </span>
+          )}
         </button>
+
         <label className="flex min-w-[145px] flex-1 items-center gap-2 sm:flex-none">
           <span className="shrink-0 text-xs text-slate-500">Sort</span>
-          <select aria-label="Sort products" value={`${selectedSort}:${selectedSortOrder}`} onChange={(event) => changeSort(event.target.value)} className="min-w-0 flex-1 rounded-xl border border-white/10 bg-[#0d141d] px-3 py-2.5 text-xs text-white outline-none focus:border-cyan-400/60 sm:min-w-[170px] sm:text-sm">
+          <select
+            aria-label="Sort products"
+            value={`${selectedSort}:${selectedSortOrder}`}
+            onChange={(event) => changeSort(event.target.value)}
+            className="min-w-0 flex-1 rounded-xl border border-white/10 bg-[#0d141d] px-3 py-2.5 text-xs text-white outline-none focus:border-cyan-400/60 sm:min-w-[170px] sm:text-sm"
+          >
             <option value="relevance:desc">Most Relevant</option>
             <option value="price:asc">Lowest Price</option>
             <option value="price:desc">Highest Price</option>
@@ -177,9 +240,34 @@ export function ProductSearchResults({
             <option value="rating:desc">Top Rated</option>
           </select>
         </label>
-        <div className="ml-auto flex shrink-0 items-center rounded-xl border border-white/10 bg-white/[0.03] p-1" role="group" aria-label="Product view">
-          <button type="button" aria-label="List view" aria-pressed={viewMode === 'list'} onClick={() => setViewMode('list')} className={`rounded-lg p-2 transition ${viewMode === 'list' ? 'bg-cyan-400/15 text-cyan-200' : 'text-slate-500 hover:text-white'}`}><List className="h-4 w-4" /></button>
-          <button type="button" aria-label="Grid view" aria-pressed={viewMode === 'grid'} onClick={() => setViewMode('grid')} className={`rounded-lg p-2 transition ${viewMode === 'grid' ? 'bg-cyan-400/15 text-cyan-200' : 'text-slate-500 hover:text-white'}`}><LayoutGrid className="h-4 w-4" /></button>
+
+        <div
+          className="ml-auto flex shrink-0 items-center rounded-xl border border-white/10 bg-white/[0.03] p-1"
+          role="group"
+          aria-label="Product view"
+        >
+          <button
+            type="button"
+            aria-label="List view"
+            aria-pressed={viewMode === 'list'}
+            onClick={() => setViewMode('list')}
+            className={`rounded-lg p-2 transition ${
+              viewMode === 'list' ? 'bg-cyan-400/15 text-cyan-200' : 'text-slate-500 hover:text-white'
+            }`}
+          >
+            <List className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="Grid view"
+            aria-pressed={viewMode === 'grid'}
+            onClick={() => setViewMode('grid')}
+            className={`rounded-lg p-2 transition ${
+              viewMode === 'grid' ? 'bg-cyan-400/15 text-cyan-200' : 'text-slate-500 hover:text-white'
+            }`}
+          >
+            <LayoutGrid className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
@@ -190,21 +278,40 @@ export function ProductSearchResults({
 
         <div className="min-w-0 flex-1">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
-            <p className="text-sm text-slate-300">Showing <span className="font-semibold text-white">{total}</span> results</p>
+            <p className="text-sm text-slate-300">
+              Showing <span className="font-semibold text-white">{total}</span> results
+            </p>
             <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">{activeCategorySlug}</p>
           </div>
+
           <ProductGrid products={products} isLoading={isLoading} viewMode={viewMode} />
-          )}
-        </div>
-      </div>
+
           {totalPages > 1 && (
             <nav aria-label="Product pages" className="mt-8 flex flex-wrap items-center justify-center gap-2">
-              {page > 1
-                ? <Link href={pageHref(page - 1)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300 transition hover:border-blue-400 hover:text-white">Previous</Link>
-                : <button type="button" disabled className="cursor-not-allowed rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-500 opacity-50">Previous</button>}
-              {paginationItems.map((item, index) => item === 'ellipsis'
-                ? <span key={`ellipsis-${index}`} aria-hidden="true" className="px-1 text-slate-500">...</span>
-                : <Link
+              {page > 1 ? (
+                <Link
+                  href={pageHref(page - 1)}
+                  className="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300 transition hover:border-blue-400 hover:text-white"
+                >
+                  Previous
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="cursor-not-allowed rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-500 opacity-50"
+                >
+                  Previous
+                </button>
+              )}
+
+              {paginationItems.map((item, index) =>
+                item === 'ellipsis' ? (
+                  <span key={`ellipsis-${index}`} aria-hidden="true" className="px-1 text-slate-500">
+                    ...
+                  </span>
+                ) : (
+                  <Link
                     key={item}
                     href={pageHref(item)}
                     aria-label={`Page ${item}`}
@@ -216,15 +323,39 @@ export function ProductSearchResults({
                     }`}
                   >
                     {item}
-                  </Link>)}
-              {page < totalPages
-                ? <Link href={pageHref(page + 1)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300 transition hover:border-blue-400 hover:text-white">Next</Link>
-                : <button type="button" disabled className="cursor-not-allowed rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-500 opacity-50">Next</button>}
+                  </Link>
+                ),
+              )}
+
+              {page < totalPages ? (
+                <Link
+                  href={pageHref(page + 1)}
+                  className="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300 transition hover:border-blue-400 hover:text-white"
+                >
+                  Next
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="cursor-not-allowed rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-500 opacity-50"
+                >
+                  Next
+                </button>
+              )}
             </nav>
           )}
+        </div>
+      </div>
+
       {filtersOpen && (
         <div className="fixed inset-0 z-[70] lg:hidden" role="dialog" aria-modal="true" aria-label="Marketplace filters">
-          <button type="button" aria-label="Close filters" onClick={() => setFiltersOpen(false)} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+          <button
+            type="button"
+            aria-label="Close filters"
+            onClick={() => setFiltersOpen(false)}
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+          />
           <div className="absolute inset-y-0 right-0 w-full max-w-md animate-in slide-in-from-right duration-200 sm:max-w-lg">
             <ProductFilters
               mobile
