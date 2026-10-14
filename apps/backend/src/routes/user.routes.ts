@@ -135,6 +135,7 @@ export default async function userRoutes(app: FastifyInstance) {
       config.storage.local.path,
       '/uploads',
       config.storage.s3,
+      config.storage.cloudinary,
     );
     let uploadedKey: string | undefined;
     try {
