@@ -42,12 +42,14 @@ export function ProductSearchResults({
   products,
   isLoading,
   total,
+  totalPages,
 }: {
   activeCategory: string;
   activeCategorySlug: string;
   products: Product[];
   isLoading: boolean;
   total: number;
+  totalPages: number;
 }) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -58,22 +60,20 @@ export function ProductSearchResults({
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const currentFilters = useMemo(() => readFilters(new URLSearchParams(queryString)), [queryString]);
   const page = Number(searchParams.get('page')) || 1;
-  const limit = Number(searchParams.get('limit')) || 20;
-  const totalPages = Math.max(1, Math.ceil(total / limit));
   const selectedSort = searchParams.get('sortBy') || 'relevance';
   const selectedSortOrder = searchParams.get('sortOrder') || 'desc';
   const filterCount = activeFilterCount(currentFilters);
+  const paginationItems: Array<number | 'ellipsis'> = [];
+  const firstVisiblePage = Math.max(2, page - 2);
+  const lastVisiblePage = Math.min(totalPages - 1, page + 2);
 
-  useEffect(() => {
-    setDraftFilters(currentFilters);
-  }, [currentFilters]);
-
-  const navigateWithParams = (params: URLSearchParams) => {
-    const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  };
-
-  useEffect(() => {
+  paginationItems.push(1);
+  if (firstVisiblePage > 2) paginationItems.push('ellipsis');
+  for (let pageNumber = firstVisiblePage; pageNumber <= lastVisiblePage; pageNumber += 1) {
+    paginationItems.push(pageNumber);
+  }
+  if (lastVisiblePage < totalPages - 1) paginationItems.push('ellipsis');
+  if (totalPages > 1) paginationItems.push(totalPages);
     if (searchParams.has('category')) return;
     const params = new URLSearchParams(queryString);
     params.set('category', 'gift-cards');
