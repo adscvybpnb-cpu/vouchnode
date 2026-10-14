@@ -9,7 +9,7 @@ import { config } from '../config';
 export default async function productRoutes(app: FastifyInstance) {
   app.get('/products', { preHandler: [optionalAuth] }, ProductController.getProducts);
   app.get('/products/mine', { preHandler: [authenticate, requireApprovedSeller] }, ProductController.getMyProducts);
-  
+
   const safeLimit = (value: unknown) => {
     const parsed = Number(value);
     return Number.isInteger(parsed) ? Math.min(Math.max(parsed, 1), 48) : 10;
@@ -28,13 +28,13 @@ export default async function productRoutes(app: FastifyInstance) {
   app.get('/products/new-arrivals', async (req: any, res) => safeCollection(req, res, () => ProductRepository.getNewArrivals(safeLimit(req.query?.limit)), 'New arrivals'));
   app.get('/products/instant', async (req: any, res) => safeCollection(req, res, () => ProductRepository.getInstantDelivery(safeLimit(req.query?.limit)), 'Instant delivery'));
   app.get('/products/:slug/offers', { preHandler: [optionalAuth] }, ProductController.getOffers);
-  
+
   app.post('/products', { preHandler: [authenticate, requireApprovedSeller] }, ProductController.createProduct);
   app.post('/products/upload-image', { preHandler: [authenticate, requireApprovedSeller] }, async (req: any, reply) => {
     const part = await req.file();
     if (!part || part.fieldname !== 'image') return reply.code(400).send({ message: 'An image file is required' });
     if (!part.mimetype.startsWith('image/')) return reply.code(415).send({ message: 'Only image files are supported' });
-    const storage = createStorageProvider(config.storage.provider, config.storage.local.path, '/uploads', config.storage.s3);
+    const storage = createStorageProvider(config.storage.provider, config.storage.local.path, '/uploads', config.storage.s3, config.storage.cloudinary);
     const uploaded = await storage.upload(await part.toBuffer(), `products/${req.user.id}`, `${Date.now()}-${part.filename}`);
     return reply.send({ url: uploaded.url });
   });
