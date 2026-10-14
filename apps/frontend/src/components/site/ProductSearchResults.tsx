@@ -194,16 +194,34 @@ export function ProductSearchResults({
             <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">{activeCategorySlug}</p>
           </div>
           <ProductGrid products={products} isLoading={isLoading} viewMode={viewMode} />
-          {totalPages > 1 && (
-            <nav aria-label="Product pages" className="mt-8 flex flex-wrap items-center justify-center gap-2">
-              {page > 1 && <Link href={pageHref(page - 1)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300 hover:border-cyan-400 hover:text-white">Previous</Link>}
-              <span className="px-3 text-sm text-slate-400">Page {page} of {totalPages}</span>
-              {page < totalPages && <Link href={pageHref(page + 1)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300 hover:border-cyan-400 hover:text-white">Next</Link>}
-            </nav>
           )}
         </div>
       </div>
-
+          {totalPages > 1 && (
+            <nav aria-label="Product pages" className="mt-8 flex flex-wrap items-center justify-center gap-2">
+              {page > 1
+                ? <Link href={pageHref(page - 1)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300 transition hover:border-blue-400 hover:text-white">Previous</Link>
+                : <button type="button" disabled className="cursor-not-allowed rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-500 opacity-50">Previous</button>}
+              {paginationItems.map((item, index) => item === 'ellipsis'
+                ? <span key={`ellipsis-${index}`} aria-hidden="true" className="px-1 text-slate-500">...</span>
+                : <Link
+                    key={item}
+                    href={pageHref(item)}
+                    aria-label={`Page ${item}`}
+                    aria-current={page === item ? 'page' : undefined}
+                    className={`min-w-10 rounded-lg border px-3 py-2 text-center text-sm font-semibold transition ${
+                      page === item
+                        ? 'border-blue-500 bg-blue-500 text-white shadow-lg shadow-blue-500/20'
+                        : 'border-white/10 text-slate-300 hover:border-blue-400 hover:text-white'
+                    }`}
+                  >
+                    {item}
+                  </Link>)}
+              {page < totalPages
+                ? <Link href={pageHref(page + 1)} className="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300 transition hover:border-blue-400 hover:text-white">Next</Link>
+                : <button type="button" disabled className="cursor-not-allowed rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-500 opacity-50">Next</button>}
+            </nav>
+          )}
       {filtersOpen && (
         <div className="fixed inset-0 z-[70] lg:hidden" role="dialog" aria-modal="true" aria-label="Marketplace filters">
           <button type="button" aria-label="Close filters" onClick={() => setFiltersOpen(false)} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
