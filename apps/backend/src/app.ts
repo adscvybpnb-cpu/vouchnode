@@ -77,12 +77,16 @@ export const buildApp = async () => {
   await app.register(helmet, { contentSecurityPolicy: false });
   await app.register(cors, {
     origin: (origin, callback) => {
-      // Admin HTTP requests may originate from either configured frontend
-      // hostname during local development; credentials remain enabled.
-      const allowedOrigins = new Set(config.app.env === 'production'
-        ? [config.app.frontendUrl]
-        : [config.app.frontendUrl, 'http://localhost:3000', 'http://127.0.0.1:3000']);
-      callback(null, !origin || allowedOrigins.has(origin));
+      const allowedOrigins = [
+        'https://vouchnodes.com',
+        'http://localhost:3000',
+        'http://127.0.0.1:3000'
+      ];
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS - Protected by VouchNode'), false);
+      }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
