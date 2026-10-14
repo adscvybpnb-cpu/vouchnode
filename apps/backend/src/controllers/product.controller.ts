@@ -44,7 +44,7 @@ export class ProductController {
         sortOrder: filters.sortOrder || 'desc'
       };
 
-            const result = await ProductService.getProducts(filters, pagination, false);
+      const result = await ProductService.getProducts(filters, pagination, false);
       const total = result?.total ?? 0;
       return reply.send({
         data: result?.data ?? [],
@@ -53,6 +53,13 @@ export class ProductController {
         limit: pagination.limit,
         totalPages: Math.max(1, Math.ceil(total / pagination.limit)),
       });
+    } catch (error) {
+      request.log?.error({ err: error, query: request.query }, 'Product list failed');
+      return reply.code(500).send({ statusCode: 500, error: 'Product Search Failed', message: 'Unable to load marketplace listings.' });
+    }
+  }
+
+  static async getProduct(request: any, reply: any) {
     const product = await ProductService.getProduct(request.params.slug, request.user?.id);
     return reply.send(product);
   }
