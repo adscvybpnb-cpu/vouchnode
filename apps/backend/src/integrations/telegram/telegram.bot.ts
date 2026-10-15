@@ -367,7 +367,7 @@ class TelegramBot {
     if (!command) return;
     const token = command[1];
     if (!token) {
-      await this.sendMessage(String(message.chat.id), 'Open the Telegram link from your VouchNode account settings to link your account.');
+      await this.sendMessage(String(message.chat.id), 'Open the Telegram link from your VouchNodes account settings to link your account.');
       return;
     }
 
@@ -399,19 +399,19 @@ class TelegramBot {
       });
 
       if (!userId) {
-        await this.sendMessage(String(message.chat.id), 'This VouchNode link is invalid or expired. Sign in and generate a new Telegram link.');
+        await this.sendMessage(String(message.chat.id), 'This VouchNodes link is invalid or expired. Sign in and generate a new Telegram link.');
         return;
       }
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        await this.sendMessage(String(message.chat.id), 'This Telegram account is already linked to another VouchNode account.');
+        await this.sendMessage(String(message.chat.id), 'This Telegram account is already linked to another VouchNodes account.');
         return;
       }
       throw error;
     }
 
     try {
-      await this.sendMessage(String(message.chat.id), 'Your Telegram account is now linked to VouchNode. Private notifications will be sent to this chat.');
+      await this.sendMessage(String(message.chat.id), 'Your Telegram account is now linked to VouchNodes. Private notifications will be sent to this chat.');
     } catch (error) {
       logger.error({ error }, 'Telegram linking succeeded but confirmation could not be delivered');
     }

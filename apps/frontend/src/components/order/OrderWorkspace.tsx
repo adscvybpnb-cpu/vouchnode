@@ -298,7 +298,7 @@ export function OrderWorkspace({ orderId }: { orderId: string }) {
               <div className="min-w-0"><h1 className="truncate text-lg font-bold tracking-tight text-white sm:text-xl">{order.product?.name || 'Digital item'}</h1><p className="mt-1 text-xs text-slate-400">Quantity {order.quantity} · {order.product?.deliveryType === 'INSTANT' ? 'Instant delivery' : 'Seller delivery'}</p></div>
             </section>
             <section className="rounded-xl border border-emerald-400/20 bg-emerald-500/5 p-4">
-              <div className="flex items-center gap-3"><ShieldCheck className="h-5 w-5 text-emerald-400" /><div><h2 className="text-sm font-semibold">Instant delivery secured</h2><p className="text-xs text-slate-400">Protected by VouchNode escrow.</p></div></div>
+              <div className="flex items-center gap-3"><ShieldCheck className="h-5 w-5 text-emerald-400" /><div><h2 className="text-sm font-semibold">Instant delivery secured</h2><p className="text-xs text-slate-400">Protected by VouchNodes escrow.</p></div></div>
               <div className="mt-3 flex items-center justify-between rounded-lg border border-emerald-400/20 px-3 py-2"><span className="text-xs uppercase tracking-wider text-slate-500">Order status</span><span className="text-sm font-semibold text-emerald-300">{displayStatus.replaceAll('_', ' ')}</span></div>
             </section>
             <section className="rounded-2xl border border-white/10 bg-[#12141d] p-6">

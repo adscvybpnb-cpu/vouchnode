@@ -18,7 +18,7 @@ describe('public configuration branding', () => {
       const response = await app.inject({ method: 'GET', url: '/public-config' });
 
       expect(response.statusCode).toBe(200);
-      expect(response.json().data.siteName).toBe('VouchNode');
+      expect(response.json().data.siteName).toBe('VouchNodes');
       expect(getSetting).not.toHaveBeenCalledWith('site_name', expect.anything());
     } finally {
       await app.close();

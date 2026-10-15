@@ -85,7 +85,7 @@ export const buildApp = async () => {
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS - Protected by VouchNode'), false);
+        callback(new Error('Not allowed by CORS - Protected by VouchNodes'), false);
       }
     },
     credentials: true,

@@ -97,7 +97,7 @@ export default function BecomeASellerPage() {
   return (
     <div className="min-h-screen bg-[#0A0A0F]">
       <div className="bg-gradient-to-b from-indigo-900/40 to-[#0A0A0F] py-24 text-center">
-        <h1 className="text-5xl font-bold text-white mb-6">Start Selling on VouchNode</h1>
+        <h1 className="text-5xl font-bold text-white mb-6">Start Selling on VouchNodes</h1>
         <div className="flex justify-center gap-8 text-indigo-200">
           <span>Earn in USDT</span>
           <span>No hidden fees</span>
@@ -108,7 +108,7 @@ export default function BecomeASellerPage() {
       <div className="container mx-auto px-4 max-w-3xl py-12">
         {!isAuthenticated ? (
           <div className="text-center bg-[#141420] p-8 rounded-xl border border-[#1E1E2E]">
-            <h2 className="text-2xl font-bold text-white mb-4">Join VouchNode to Start Selling</h2>
+            <h2 className="text-2xl font-bold text-white mb-4">Join VouchNodes to Start Selling</h2>
             <div className="flex gap-4 justify-center">
               <Link href="/login"><Button>Log In</Button></Link>
               <Link href="/register"><Button variant="outline">Register</Button></Link>

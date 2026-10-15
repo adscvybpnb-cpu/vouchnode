@@ -30,7 +30,7 @@ export default function TermsPage() {
           <h1 className="mt-2 text-4xl font-black tracking-tight">Terms of Service &amp; Privacy Notice</h1>
           <p className="mt-3 text-sm text-slate-400">Last updated: September 28, 2026</p>
           <p className="mt-5 text-sm leading-7 text-slate-300">
-            These terms govern your access to VouchNode and its marketplace, peer-to-peer trading, wallet,
+            These terms govern your access to VouchNodes and its marketplace, peer-to-peer trading, wallet,
             escrow, and support features. By creating an account or using a feature, you agree to these
             terms. If you do not agree, do not use the service. This general notice is not jurisdiction-specific
             legal advice and does not limit non-waivable rights under laws that apply to you.
@@ -46,7 +46,7 @@ export default function TermsPage() {
           <Clause title="2. Marketplace and peer-to-peer transactions">
             <p>Users are responsible for the accuracy and legality of their listings, offers, payment instructions, digital goods, and representations. Review all product descriptions, seller terms, rates, fees, deadlines, payment details, and order status before accepting a transaction.</p>
             <p>Keep transaction communications and evidence in the platform’s order or trade workspace. Do not move a transaction off-platform, share account security credentials, submit false payment evidence, or make a payment to a different recipient than the one shown in the active order.</p>
-            <p>Gift cards and digital assets may be region-restricted, expired, redeemed, revoked, or subject to issuer terms. VouchNode does not control third-party issuers, banks, exchanges, or blockchain networks.</p>
+            <p>Gift cards and digital assets may be region-restricted, expired, redeemed, revoked, or subject to issuer terms. VouchNodes does not control third-party issuers, banks, exchanges, or blockchain networks.</p>
           </Clause>
 
           <Clause title="3. Escrow and custody of trade assets">
@@ -68,7 +68,7 @@ export default function TermsPage() {
 
           <Clause title="4. Disputes, evidence, and transaction finality">
             <p>Initiate a trade dispute only from the relevant order or P2P trade details page while the dispute control is available. Follow displayed deadlines, provide truthful and complete evidence, and respond promptly to reasonable requests. General technical or account issues may be reported through the <Link href="/support/ticket" className="text-indigo-300 hover:underline">support ticket form</Link>; a general ticket is not a substitute for an order dispute.</p>
-            <p>VouchNode may review order records, in-product messages, submitted evidence, transaction history, and available blockchain data to administer a dispute. We may apply the order rules and available evidence to determine whether escrow should remain reserved or be released. A platform determination does not reverse a blockchain transaction or bind an external issuer, bank, or court.</p>
+            <p>VouchNodes may review order records, in-product messages, submitted evidence, transaction history, and available blockchain data to administer a dispute. We may apply the order rules and available evidence to determine whether escrow should remain reserved or be released. A platform determination does not reverse a blockchain transaction or bind an external issuer, bank, or court.</p>
             <p>Blockchain transactions, once sufficiently confirmed, are generally irreversible. Network delays, congestion, validator/miner actions, reorganizations, outages, forks, and incorrect addresses or networks can affect transfers. You bear the risk of verifying the asset, network, destination, amount, and any memo/tag before sending.</p>
           </Clause>
 
@@ -87,7 +87,7 @@ export default function TermsPage() {
               guarantee against attack, or representation that every supported chain has identical protections.
               You must send the correct asset on the exact network displayed for your generated address.
             </p>
-            <p>Network protocols, token contracts, validators, exchanges, bridges, and wallet software are third-party systems outside VouchNode’s control. We do not promise uninterrupted network availability, token value, liquidity, or recovery for a wrong-network transfer.</p>
+            <p>Network protocols, token contracts, validators, exchanges, bridges, and wallet software are third-party systems outside VouchNodes’s control. We do not promise uninterrupted network availability, token value, liquidity, or recovery for a wrong-network transfer.</p>
           </Clause>
 
           <Clause title="6. Deposits, withdrawals, and fees">
@@ -99,7 +99,7 @@ export default function TermsPage() {
           <Clause title="7. Prohibited conduct and anti-fraud rules">
             <p>You must not use the platform for fraud, theft, money laundering, terrorist financing, sanctions evasion, market manipulation, unauthorized payment activity, stolen or compromised payment instruments, chargeback abuse, trafficking in stolen or counterfeit codes, or any unlawful purpose.</p>
             <p>Prohibited conduct also includes impersonation, fake receipts or screenshots, collusion, account sales, attempts to bypass escrow, coercing a user to release funds, exploiting bugs, unauthorized access, malicious software, harassment, and submitting materially false verification or dispute information.</p>
-            <p>Users must comply with applicable sanctions, anti-money-laundering, consumer-protection, tax, and other laws. VouchNode may conduct risk-based screening and transaction monitoring, request additional information, delay activity, preserve records, restrict access, or make disclosures to competent authorities when legally required or reasonably necessary to protect the service and users. We do not claim that these measures make every transaction compliant in every jurisdiction.</p>
+            <p>Users must comply with applicable sanctions, anti-money-laundering, consumer-protection, tax, and other laws. VouchNodes may conduct risk-based screening and transaction monitoring, request additional information, delay activity, preserve records, restrict access, or make disclosures to competent authorities when legally required or reasonably necessary to protect the service and users. We do not claim that these measures make every transaction compliant in every jurisdiction.</p>
           </Clause>
 
           <Clause title="8. Suspension, restriction, and account closure">
@@ -116,7 +116,7 @@ export default function TermsPage() {
 
           <Clause title="10. Service availability, disclaimers, and liability">
             <p>The platform and third-party network services are provided subject to availability. To the maximum extent permitted by applicable law, we disclaim implied warranties and are not responsible for losses caused by user error, incorrect addresses or networks, third-party issuers or payment providers, network disruption, compromised user devices or credentials, or events outside our reasonable control.</p>
-            <p>Nothing in these terms excludes liability or rights that cannot lawfully be excluded or limited. To the extent permitted by law, VouchNode is not liable for indirect, incidental, special, punitive, or consequential losses, loss of profits, or loss of digital asset value. These terms do not guarantee any particular dispute outcome or recovery.</p>
+            <p>Nothing in these terms excludes liability or rights that cannot lawfully be excluded or limited. To the extent permitted by law, VouchNodes is not liable for indirect, incidental, special, punitive, or consequential losses, loss of profits, or loss of digital asset value. These terms do not guarantee any particular dispute outcome or recovery.</p>
           </Clause>
 
           <Clause title="11. Changes and contact">

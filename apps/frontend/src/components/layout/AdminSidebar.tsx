@@ -74,7 +74,7 @@ export function AdminSidebar() {
   };
   return <aside translate="no" className="notranslate flex h-screen w-64 shrink-0 flex-col overflow-hidden border-r border-white/10 bg-[#0b0d14]">
     <div className="shrink-0 p-5 pb-3">
-      <Link href="/admin" translate="no" className="notranslate text-lg font-bold tracking-tight text-white">VouchNode <span translate="no" className="notranslate text-cyan-300">Admin</span></Link>
+      <Link href="/admin" translate="no" className="notranslate text-lg font-bold tracking-tight text-white">VouchNodes <span translate="no" className="notranslate text-cyan-300">Admin</span></Link>
     </div>
     <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-5 pb-3 pr-4">
         {standalone.slice(0, 1).map((item) => renderItem(item))}

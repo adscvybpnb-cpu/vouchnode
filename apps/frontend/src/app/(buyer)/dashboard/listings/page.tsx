@@ -58,7 +58,7 @@ export default function ListingsPage() {
           </div>
           <h2 className="mt-4 text-lg font-semibold text-white">No {activeTab.toLowerCase()} listings yet</h2>
           <p className="mt-2 max-w-md text-sm text-slate-400">
-            Create an auto-delivery product listing to start selling securely on VouchNode.
+            Create an auto-delivery product listing to start selling securely on VouchNodes.
           </p>
           <Link href="/seller/create-listing" className="mt-5 text-sm font-semibold text-indigo-300 hover:text-indigo-200">
             Create your first listing

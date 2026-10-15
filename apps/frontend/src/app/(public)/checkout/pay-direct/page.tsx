@@ -250,7 +250,7 @@ function PayDirectPageContent() {
           <div className="flex items-center justify-between border-b border-white/10 pb-6">
             <div className="flex items-center gap-3">
               <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 text-lg font-black">G</span>
-              <div><p className="font-bold text-white">VouchNode</p><p className="text-xs text-slate-500">Secure payment invoice</p></div>
+              <div><p className="font-bold text-white">VouchNodes</p><p className="text-xs text-slate-500">Secure payment invoice</p></div>
             </div>
             <div className="text-right"><p className="text-xs uppercase tracking-wider text-slate-500">Total order price</p><p className="text-2xl font-bold text-white">{price.toFixed(2)} USD</p></div>
           </div>

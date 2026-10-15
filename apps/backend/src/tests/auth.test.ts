@@ -65,7 +65,7 @@ describe('AuthService', () => {
     expect(NotificationService.createNotification).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'new-user',
       type: 'SYSTEM',
-      title: expect.stringContaining('Welcome to VouchNode!'),
+      title: expect.stringContaining('Welcome to VouchNodes!'),
       data: { emailTemplate: 'welcome' },
       sendEmail: true
     }));

@@ -1,6 +1,6 @@
 import { NotificationType } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
-import { htmlToPlainText, renderNotificationEmail, renderWelcomeEmail, resolveNotificationEmailRole, WELCOME_EMAIL_SUBJECT, wrapInVouchNodeBrand } from '../integrations/email/email.templates';
+import { htmlToPlainText, renderNotificationEmail, renderWelcomeEmail, resolveNotificationEmailRole, WELCOME_EMAIL_SUBJECT, wrapInVouchNodesBrand } from '../integrations/email/email.templates';
 
 describe('transactional email templates', () => {
   it('selects the buyer or seller variant from the recipient event context', () => {
@@ -29,7 +29,7 @@ describe('transactional email templates', () => {
     expect(sellerEmail.html).toContain('Seller update');
     expect(sellerEmail.html).toContain('Open seller dashboard');
     expect(buyerEmail.html).toContain('Buyer update');
-    expect(buyerEmail.html).toContain('View your VouchNode account');
+    expect(buyerEmail.html).toContain('View your VouchNodes account');
   });
 
   it('escapes user-supplied content and only links back to the configured site', () => {
@@ -61,9 +61,9 @@ describe('transactional email templates', () => {
     expect(externalLink.text).not.toContain('evil.example');
   });
 
-  it('adds VouchNode visual branding to outgoing HTML', () => {
-    const branded = wrapInVouchNodeBrand('<p>Order placed</p>');
-    expect(branded).toContain('VouchNode');
+  it('adds VouchNodes visual branding to outgoing HTML', () => {
+    const branded = wrapInVouchNodesBrand('<p>Order placed</p>');
+    expect(branded).toContain('VouchNodes');
     expect(branded).toContain('#ffd43b');
     expect(branded).toContain('fill="#fff"');
     expect(branded).toContain('<p>Order placed</p>');
@@ -86,7 +86,7 @@ describe('transactional email templates', () => {
     ]);
 
     expect(email.subject).toBe(WELCOME_EMAIL_SUBJECT);
-    expect(email.html).toContain('Welcome to VouchNode!');
+    expect(email.html).toContain('Welcome to VouchNodes!');
     expect(email.html).toContain('Active marketplace discounts');
     expect(email.html).toContain('Game &amp; Store card');
     expect(email.html).toContain('15.00% off');

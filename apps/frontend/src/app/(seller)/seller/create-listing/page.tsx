@@ -185,7 +185,7 @@ export default function CreateListingPage() {
     <main className="min-h-screen bg-[#0A0A0F] px-4 py-12 text-white">
       <form onSubmit={submit} className="mx-auto max-w-3xl space-y-8 rounded-3xl border border-white/10 bg-[#141420] p-6 shadow-2xl sm:p-10">
         <button type="button" onClick={() => router.back()} className="flex items-center gap-2 text-sm text-slate-400 hover:text-white"><ArrowLeft className="h-4 w-4" /> Back</button>
-        <div><p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-300">Seller Studio</p><h1 className="mt-2 text-3xl font-bold">Create a listing</h1><p className="mt-2 text-slate-400">Publish your product to the VouchNode marketplace.</p></div>
+        <div><p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-300">Seller Studio</p><h1 className="mt-2 text-3xl font-bold">Create a listing</h1><p className="mt-2 text-slate-400">Publish your product to the VouchNodes marketplace.</p></div>
         <div className="rounded-2xl border-2 border-dashed border-white/10 p-5 text-center transition-colors hover:border-indigo-400">
           <label className="block cursor-pointer">
             <UploadCloud className="mx-auto h-10 w-10 text-indigo-300" />

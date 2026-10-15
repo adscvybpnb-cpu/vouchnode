@@ -21,7 +21,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600">
               <span translate="no" className="notranslate text-lg font-bold text-white">G</span>
             </div>
-            <span translate="no" className="notranslate text-2xl font-bold text-white">VouchNode</span>
+            <span translate="no" className="notranslate text-2xl font-bold text-white">VouchNodes</span>
           </a>
         </div>
         {children}

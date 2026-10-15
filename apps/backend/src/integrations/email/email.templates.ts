@@ -26,7 +26,7 @@ export interface WelcomeDiscount {
   currentPrice: string;
 }
 
-export const WELCOME_EMAIL_SUBJECT = 'Welcome to VouchNode! 🎉 Your Exclusive Gift Cards & Discounts Inside';
+export const WELCOME_EMAIL_SUBJECT = 'Welcome to VouchNodes! 🎉 Your Exclusive Gift Cards & Discounts Inside';
 
 export function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (character) => ({
@@ -79,12 +79,12 @@ function getActionUrl(frontendUrl: string, link: string | null) {
 export function renderNotificationEmail(input: NotificationEmailInput): RenderedEmail {
   const isSeller = input.role === 'seller';
   const actionUrl = getActionUrl(input.frontendUrl, input.link);
-  const actionLabel = isSeller ? 'Open seller dashboard' : 'View your VouchNode account';
+  const actionLabel = isSeller ? 'Open seller dashboard' : 'View your VouchNodes account';
   const audienceLabel = isSeller ? 'Seller update' : 'Buyer update';
   const audienceBackground = isSeller ? '#eff8ff' : '#fffaeb';
   const audienceBorder = isSeller ? '#155eef' : '#ffd43b';
   const messageText = input.message || input.title;
-  const subject = `${input.title} | VouchNode`;
+  const subject = `${input.title} | VouchNodes`;
   const html = [
     `<p style="margin:0 0 18px;color:#475467;font-size:15px">Hello ${escapeHtml(input.recipientName)},</p>`,
     `<p style="display:inline-block;margin:0 0 16px;padding:7px 10px;background:${audienceBackground};border-left:4px solid ${audienceBorder};color:#344054;font-size:12px;font-weight:700;text-transform:uppercase">${audienceLabel}</p>`,
@@ -116,7 +116,7 @@ export function renderWelcomeEmail(
   const marketplaceUrl = escapeHtml(new URL('/marketplace', frontendUrl).toString());
   const categoryList = categories.length
     ? `<ul style="padding-left:22px;color:#475467;line-height:1.8">${categories.map((category) => `<li>${escapeHtml(category)}</li>`).join('')}</ul>`
-    : '<p style="color:#475467;line-height:1.7">Explore gift cards and digital products across the VouchNode marketplace.</p>';
+    : '<p style="color:#475467;line-height:1.7">Explore gift cards and digital products across the VouchNodes marketplace.</p>';
   const discountContent = discounts.length
     ? `<h2 style="margin:26px 0 12px;color:#101828;font-size:18px">Active marketplace discounts</h2>
        <table role="presentation" width="100%" cellspacing="0" cellpadding="0">${discounts.map((offer) => `
@@ -128,12 +128,12 @@ export function renderWelcomeEmail(
     : '<p style="margin-top:20px;color:#475467;line-height:1.7">There are no discounted listings to feature right now. Check the marketplace for current seller offers and rewards.</p>';
   const html = [
     `<p style="margin:0 0 18px;color:#475467;font-size:15px">Hello ${name},</p>`,
-    '<h1 style="margin:0 0 16px;color:#101828;font-size:25px;line-height:1.3">Welcome to VouchNode!</h1>',
-    '<p style="margin:0;color:#475467;font-size:15px;line-height:1.7">Thanks for joining our marketplace. You can now discover gift cards and digital products from VouchNode sellers.</p>',
+    '<h1 style="margin:0 0 16px;color:#101828;font-size:25px;line-height:1.3">Welcome to VouchNodes!</h1>',
+    '<p style="margin:0;color:#475467;font-size:15px;line-height:1.7">Thanks for joining our marketplace. You can now discover gift cards and digital products from VouchNodes sellers.</p>',
     '<h2 style="margin:26px 0 8px;color:#101828;font-size:18px">Start exploring</h2>',
     categoryList,
     discountContent,
-    `<p style="margin:26px 0 0"><a href="${marketplaceUrl}" style="display:inline-block;padding:12px 20px;background:#155eef;color:#fff;border-radius:6px;text-decoration:none;font-weight:600">Explore VouchNode</a></p>`,
+    `<p style="margin:26px 0 0"><a href="${marketplaceUrl}" style="display:inline-block;padding:12px 20px;background:#155eef;color:#fff;border-radius:6px;text-decoration:none;font-weight:600">Explore VouchNodes</a></p>`,
   ].join('');
   const discountText = discounts.length
     ? `Active marketplace discounts:\n${discounts.map((offer) => `- ${offer.productName} (${offer.categoryName}): ${offer.discountPercent}% off, now ${offer.currentPrice} ${offer.currency}`).join('\n')}`
@@ -141,20 +141,20 @@ export function renderWelcomeEmail(
   const text = [
     `Hello ${recipientName},`,
     '',
-    'Welcome to VouchNode!',
-    'Thanks for joining our marketplace. Discover gift cards and digital products from VouchNode sellers.',
+    'Welcome to VouchNodes!',
+    'Thanks for joining our marketplace. Discover gift cards and digital products from VouchNodes sellers.',
     '',
     'Start exploring:',
     ...(categories.length ? categories.map((category) => `- ${category}`) : ['- Gift cards and digital products across the marketplace']),
     '',
     discountText,
     '',
-    `Explore VouchNode: ${new URL('/marketplace', frontendUrl).toString()}`,
+    `Explore VouchNodes: ${new URL('/marketplace', frontendUrl).toString()}`,
   ].join('\n');
   return { subject: WELCOME_EMAIL_SUBJECT, html, text };
 }
 
-export function wrapInVouchNodeBrand(content: string) {
+export function wrapInVouchNodesBrand(content: string) {
   return `<!doctype html>
 <html lang="en">
   <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -163,18 +163,18 @@ export function wrapInVouchNodeBrand(content: string) {
       <tr><td style="padding:24px 32px;background:#155eef">
         <table role="presentation" cellspacing="0" cellpadding="0"><tr>
           <td style="width:42px;height:42px;background:#0b3ca8;border-radius:8px;text-align:center;vertical-align:middle">
-            <svg role="img" aria-label="VouchNode" width="34" height="34" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg">
+            <svg role="img" aria-label="VouchNodes" width="34" height="34" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg">
               <rect x="3" y="3" width="28" height="28" rx="4" fill="#155eef"/>
               <rect x="16" y="3" width="4" height="28" fill="#ffd43b"/>
               <path d="M17 15c-7-8-12-2-5 2 2 1 4 1 5 1-1-5 0-9 0-9s1 4 0 9c1 0 3 0 5-1 7-4 2-10-5-2Zm-1 4h2v7h-2z" fill="#fff"/>
             </svg>
           </td>
-          <td style="padding-left:12px;color:#fff;font-size:21px;font-weight:700">VouchNode</td>
+          <td style="padding-left:12px;color:#fff;font-size:21px;font-weight:700">VouchNodes</td>
         </tr></table>
       </td></tr>
       <tr><td style="padding:32px">${content}</td></tr>
       <tr><td style="padding:18px 32px;border-top:1px solid #eaecf0;color:#667085;font-size:12px;line-height:1.6">
-        This is an automatic message from VouchNode. Please do not reply to this email.
+        This is an automatic message from VouchNodes. Please do not reply to this email.
       </td></tr>
     </table>
   </body>

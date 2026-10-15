@@ -1,1 +1,1 @@
-export const BRAND_NAME = 'VouchNode';
+export const BRAND_NAME = 'VouchNodes';

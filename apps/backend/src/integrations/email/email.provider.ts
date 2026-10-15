@@ -1,7 +1,7 @@
 import nodemailer, { Transporter } from 'nodemailer';
 import { config } from '../../config';
 import { logger } from '../../lib/logger';
-import { htmlToPlainText, wrapInVouchNodeBrand } from './email.templates';
+import { htmlToPlainText, wrapInVouchNodesBrand } from './email.templates';
 
 export interface EmailProvider {
   sendEmail(to: string, subject: string, html: string, text?: string): Promise<void>;
@@ -35,8 +35,8 @@ export class SmtpProvider implements EmailProvider {
       from: { name: config.email.from.name, address: config.email.from.address },
       to,
       subject,
-      html: wrapInVouchNodeBrand(html),
-      text: `VouchNode\n\n${plainText}`,
+      html: wrapInVouchNodesBrand(html),
+      text: `VouchNodes\n\n${plainText}`,
     });
     const responseCode = Number(/^\s*(\d{3})/.exec(result.response)?.[1] ?? 0);
     const accepted = result.accepted.some((address: unknown) => String(address).toLowerCase() === to.toLowerCase());

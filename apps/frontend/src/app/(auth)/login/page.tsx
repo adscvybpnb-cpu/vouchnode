@@ -59,7 +59,7 @@ export default function LoginPage() {
         {/* Header */}
         <div className="text-center">
           <h2 className="text-3xl font-extrabold text-white">Sign In</h2>
-          <p className="mt-2 text-sm text-gray-400">Welcome back to VouchNode</p>
+          <p className="mt-2 text-sm text-gray-400">Welcome back to VouchNodes</p>
         </div>
 
         {accountNotice && (

@@ -117,7 +117,7 @@ export default function HelpCenterPage() {
               <li>Track the request from Wallet / transaction history. If it fails, check the displayed status and returned balance before submitting another withdrawal.</li>
             </ol>
             <p>
-              Never share your seed phrase or private key to receive a withdrawal. VouchNode support will not
+              Never share your seed phrase or private key to receive a withdrawal. VouchNodes support will not
               ask you to send funds to a personal address to “unlock” a withdrawal.
             </p>
           </GuideSection>
@@ -146,7 +146,7 @@ export default function HelpCenterPage() {
             <ul className="list-disc space-y-2 pl-5">
               <li>Applicable marketplace, conversion, and withdrawal fees are shown in the relevant flow or fee schedule. Confirm them before accepting or submitting.</li>
               <li>Crypto transfers require blockchain confirmation. Required confirmation counts and review times vary by network and transaction risk; a displayed pending status is not a completed credit.</li>
-              <li>Never share passwords, one-time codes, private keys, seed phrases, or remote-access control. VouchNode staff will not ask you to disable security protections or trade outside the platform.</li>
+              <li>Never share passwords, one-time codes, private keys, seed phrases, or remote-access control. VouchNodes staff will not ask you to disable security protections or trade outside the platform.</li>
               <li>Report suspicious requests through the order dispute controls or the general ticket form. Include evidence and preserve original messages.</li>
               <li>For the terms governing trading, custody, fees, and platform risk, read the <Link href="/terms" className="text-indigo-300 hover:underline">Terms &amp; Privacy</Link> page.</li>
             </ul>

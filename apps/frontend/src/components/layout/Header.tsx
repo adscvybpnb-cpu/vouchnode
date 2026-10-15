@@ -16,7 +16,7 @@ import { getSellerStartPath } from '@/lib/seller-access';
 import { siteConfigService } from '@/services/site-config.service';
 import { APP_NAME } from '@/lib/constants';
 
-function VouchNodeLogo({ logoUrl }: { logoUrl?: string }) {
+function VouchNodesLogo({ logoUrl }: { logoUrl?: string }) {
   if (logoUrl && !logoUrl.endsWith('favicon.svg')) return <img src={logoUrl} alt="" className="h-9 w-9 rounded-lg object-contain" />;
   return (
     <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -135,7 +135,7 @@ export function Header() {
       <div className="mx-auto flex h-20 min-w-0 max-w-7xl items-center justify-between gap-2 px-3 sm:gap-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <Link href="/" className="flex shrink-0 items-center gap-2.5">
-            <VouchNodeLogo logoUrl={logoUrl} />
+            <VouchNodesLogo logoUrl={logoUrl} />
             <span translate="no" className="notranslate hidden truncate text-lg font-bold tracking-tight text-white sm:inline">
               {APP_NAME}
             </span>

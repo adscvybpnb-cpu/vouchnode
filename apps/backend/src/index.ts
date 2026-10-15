@@ -54,7 +54,7 @@ const start = async () => {
     const app = await buildApp();
     await setupSocketServer(app.server);
     await app.listen({ port: Number(process.env.PORT) || 10000, host: '0.0.0.0' });
-    app.log.info(`VouchNode API running on ${config.app.host}:${config.app.port}`);
+    app.log.info(`VouchNodes API running on ${config.app.host}:${config.app.port}`);
     if (config.app.env !== 'production') {
       await Promise.all([
         import('./jobs/order.job.js'),

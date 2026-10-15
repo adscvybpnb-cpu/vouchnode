@@ -16,11 +16,11 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   try {
     const product = await productService.getProduct(params.slug);
     return {
-      title: `${product.name} | VouchNode`,
+      title: `${product.name} | VouchNodes`,
       description: product.description.slice(0, 160),
       openGraph: { title: product.name, description: product.description, images: product.images?.[0]?.url ? [product.images[0].url] : [] },
     };
-  } catch { return { title: 'Product | VouchNode' }; }
+  } catch { return { title: 'Product | VouchNodes' }; }
 }
 
 export default async function ProductDetailPage({ params }: { params: { slug: string } }) {

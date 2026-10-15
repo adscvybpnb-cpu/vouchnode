@@ -6,7 +6,7 @@ export function Footer() {
       <div className="container mx-auto mb-8 px-4">
         <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
           <div>
-            <Link href="/" translate="no" className="notranslate mb-4 block text-xl font-bold text-primary">🎁 VouchNode</Link>
+            <Link href="/" translate="no" className="notranslate mb-4 block text-xl font-bold text-primary">🎁 VouchNodes</Link>
             <p translate="no" className="notranslate mb-4 text-sm text-muted-foreground">
               The premium marketplace for gift cards and digital assets. Secure, instant, and crypto-friendly.
             </p>
@@ -37,7 +37,7 @@ export function Footer() {
         </div>
       </div>
       <div className="container mx-auto flex flex-col items-center justify-between border-t border-border px-4 pt-6 text-sm text-muted-foreground sm:flex-row">
-        <p translate="no" className="notranslate">© {new Date().getFullYear()} VouchNode. All rights reserved.</p>
+        <p translate="no" className="notranslate">© {new Date().getFullYear()} VouchNodes. All rights reserved.</p>
         <div translate="no" className="notranslate mt-4 flex gap-4 sm:mt-0">
           <span translate="no" className="notranslate">USDT</span>
           <span translate="no" className="notranslate">BTC</span>

@@ -1,6 +1,6 @@
-# VouchNode Marketplace
+# VouchNodes Marketplace
 
-VouchNode is a complete, production-grade marketplace platform for buying and selling gift cards and digital products using fiat and cryptocurrency.
+VouchNodes is a complete, production-grade marketplace platform for buying and selling gift cards and digital products using fiat and cryptocurrency.
 
 ## 1. Overview & Features
 

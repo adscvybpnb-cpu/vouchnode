@@ -66,7 +66,7 @@ export default function SupportTicketPage() {
           <CheckCircle2 className="h-20 w-20 text-emerald-400" aria-hidden="true" />
           <h1 className="mt-6 text-3xl font-bold tracking-tight sm:text-4xl">Thank you! Your ticket has been logged successfully.</h1>
           <p className="mt-5 text-lg text-slate-300">Your Ticket ID: <strong className="text-emerald-300">#{ticketId}</strong></p>
-          <Link href="/" className="mt-8 rounded-xl border border-indigo-300/40 bg-indigo-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-indigo-500">Return to VouchNode</Link>
+          <Link href="/" className="mt-8 rounded-xl border border-indigo-300/40 bg-indigo-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-indigo-500">Return to VouchNodes</Link>
         </section>
       </main>
     );
@@ -76,7 +76,7 @@ export default function SupportTicketPage() {
     <main className="min-h-[calc(100vh-5rem)] bg-[#0A0A0F] px-4 py-10 text-white sm:px-6 lg:py-16">
       <section className="mx-auto w-full max-w-5xl">
         <Link href="/" className="inline-flex items-center gap-2 text-sm text-slate-400 transition-colors hover:text-white">
-          <ChevronLeft className="h-4 w-4" /> Back to VouchNode
+          <ChevronLeft className="h-4 w-4" /> Back to VouchNodes
         </Link>
         <div className="mt-8 grid gap-8 lg:grid-cols-[0.8fr_1.2fr]">
           <div className="rounded-3xl border border-indigo-400/20 bg-gradient-to-br from-indigo-500/15 to-[#12141d] p-8 sm:p-10">

@@ -214,7 +214,7 @@ export class AuthService {
         userId: user.id,
         type: 'SYSTEM',
         title: WELCOME_EMAIL_SUBJECT,
-        message: 'Welcome to VouchNode. Explore gift cards and digital products, and check the marketplace for current seller offers.',
+        message: 'Welcome to VouchNodes. Explore gift cards and digital products, and check the marketplace for current seller offers.',
         data: { emailTemplate: 'welcome' },
         link: '/marketplace',
         sendEmail: true,
@@ -417,7 +417,7 @@ export class AuthService {
     const emailProvider = createEmailProvider();
     await emailProvider.sendEmail(
       user.email,
-      'Reset Your VouchNode Password',
+      'Reset Your VouchNodes Password',
       `<p>Click <a href="${config.app.frontendUrl}/auth/reset-password?token=${resetToken}">here</a> to reset your password. This link expires in 1 hour.</p>`
     );
   }

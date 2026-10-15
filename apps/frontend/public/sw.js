@@ -1,6 +1,6 @@
 self.addEventListener('push', (event) => {
   const payload = event.data ? event.data.json() : {};
-  const title = payload.title || 'VouchNode';
+  const title = payload.title || 'VouchNodes';
   const options = {
     body: payload.message || 'You have a new notification.',
     icon: '/favicon.svg',

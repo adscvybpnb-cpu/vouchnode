@@ -573,7 +573,7 @@ export default function SellerOnboardingPage() {
               <div className="flex items-start gap-2 pt-2">
                 <input type="checkbox" id="agreeSellerTerms" {...register('agreeSellerTerms')} className="mt-1 rounded bg-[#0A0A0F] border-[#1E1E2E] text-indigo-600" />
                 <Label htmlFor="agreeSellerTerms" className="text-sm font-normal text-slate-400 leading-relaxed">
-                  I agree to the VouchNode{' '}
+                  I agree to the VouchNodes{' '}
                   <a href="/terms" className="text-indigo-400 hover:underline">Seller Terms of Service</a>
                   , including the platform fee policy and dispute resolution rules.
                 </Label>
@@ -726,7 +726,7 @@ export default function SellerOnboardingPage() {
                   <p className="font-semibold mb-1">⏱ What happens next?</p>
                   <p className="text-slate-300">
                     Your documents are checked automatically in the background. Any unclear or inconsistent result is safely routed to admin review.
-                    You&apos;ll receive an email notification once approved. You can continue using VouchNode as a buyer in the meantime.
+                    You&apos;ll receive an email notification once approved. You can continue using VouchNodes as a buyer in the meantime.
                   </p>
                 </div>
               )}
