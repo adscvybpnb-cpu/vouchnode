@@ -5,7 +5,7 @@ import { DisputeRepository } from '../repositories/dispute.repository';
 import { config } from '../config';
 import { prisma } from '../lib/prisma';
 import { createStorageProvider } from '../integrations/storage/storage.provider';
-import { fileTypeFromBuffer } from 'file-type';
+import { detectImageMimeType } from '../lib/image-signature';
 
 const allowedEvidenceTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const maxEvidenceSize = 10 * 1024 * 1024;
@@ -91,14 +91,8 @@ export default async function disputeRoutes(app: FastifyInstance) {
     if (!allowedEvidenceTypes.has(mimetype)) {
       return res.status(415).send({ message: 'Evidence must be a JPG, PNG, WEBP, or GIF image' });
     }
-    let detected;
-    try {
-      detected = await fileTypeFromBuffer(file);
-    } catch (error) {
-      req.log.warn({ error, disputeId: dispute.id }, 'Unable to inspect dispute evidence image');
-      return res.status(415).send({ message: 'The uploaded file is not a valid supported image' });
-    }
-    if (!detected || detected.mime !== mimetype || !allowedEvidenceTypes.has(detected.mime)) {
+    const detectedMime = detectImageMimeType(file);
+    if (!detectedMime || detectedMime !== mimetype || !allowedEvidenceTypes.has(detectedMime)) {
       return res.status(415).send({ message: 'The uploaded file is not a valid supported image' });
     }
     if (description && description.length > 2000) {
