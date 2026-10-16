@@ -16,7 +16,7 @@ export const messageService = {
     const formData = new FormData();
     formData.append('file', file);
     const response = await apiClient.upload<{ fileUrl: string; messageType: 'IMAGE' | 'VIDEO'; visibility: 'EVERYONE' | 'ADMIN_ONLY' }>(
-      `/messages/conversations/${conversationId}/media?visibility=${visibility}`,
+      `/messages/conversations/${encodeURIComponent(conversationId)}/media?visibility=${visibility}`,
       formData
     );
     if (response.error) throw new Error(response.error);
