@@ -3,6 +3,9 @@ import { MessageService } from '../services/message.service';
 import { authenticate } from '../middleware/auth.middleware';
 import { config } from '../config';
 import { createStorageProvider } from '../integrations/storage/storage.provider';
+import { detectImageMimeType } from '../lib/image-signature';
+
+const maxMediaSize = 50 * 1024 * 1024;
 
 export default async function messageRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authenticate);
@@ -58,10 +61,34 @@ export default async function messageRoutes(app: FastifyInstance) {
     if (!String(req.headers['content-type'] || '').startsWith('multipart/form-data')) {
       return res.status(415).send({ message: 'Multipart media upload is required' });
     }
-    if (!(await MessageService.canAccessConversation(String(req.params.id), req.user.id))) {
+    let canAccessConversation: boolean;
+    try {
+      canAccessConversation = await MessageService.canAccessConversation(String(req.params.id), req.user.id);
+    } catch (error) {
+      req.log.error({ error, conversationId: req.params.id, userId: req.user.id }, 'Unable to authorize chat media upload');
+      return res.status(503).send({ message: 'Chat is temporarily unavailable. Please try again.' });
+    }
+    if (!canAccessConversation) {
       return res.status(403).send({ message: 'Unauthorized conversation' });
     }
-    const part = await req.file();
+
+    let part;
+    let buffer: Buffer;
+    try {
+      part = await req.file({ limits: { fileSize: maxMediaSize, files: 1 } });
+      if (!part) return res.status(400).send({ message: 'A media file is required' });
+      buffer = await part.toBuffer();
+    } catch (error) {
+      const code = error instanceof Error && 'code' in error
+        ? (error as NodeJS.ErrnoException).code
+        : undefined;
+      if (code === 'FST_REQ_FILE_TOO_LARGE') {
+        return res.status(413).send({ message: 'Media must be 50MB or smaller' });
+      }
+      req.log.warn({ error, conversationId: req.params.id }, 'Unable to read chat media upload');
+      return res.status(400).send({ message: 'Unable to read the uploaded media' });
+    }
+
     if (!part || part.fieldname !== 'file') return res.status(400).send({ message: 'A media file is required' });
     const allowed: Record<string, 'IMAGE' | 'VIDEO'> = {
       'image/png': 'IMAGE',
@@ -71,18 +98,35 @@ export default async function messageRoutes(app: FastifyInstance) {
     };
     const messageType = allowed[part.mimetype];
     if (!messageType) return res.status(415).send({ message: 'Only PNG, JPG, MP4, and MOV files are supported' });
-    const buffer = await part.toBuffer();
-    if (!buffer.length || buffer.length > 50 * 1024 * 1024) {
-      return res.status(413).send({ message: 'Media must be between 1 byte and 50MB' });
+    if (!buffer.length) {
+      return res.status(400).send({ message: 'The uploaded media file is empty' });
     }
-    const safeFilename = part.filename.replace(/[^a-zA-Z0-9._-]/g, '-');
-    const storage = createStorageProvider(config.storage.provider, config.storage.local.path, '/uploads', config.storage.s3);
-    const uploaded = await storage.upload(buffer, `chat-evidence/${req.user.id}`, `${Date.now()}-${safeFilename}`);
-    const fileUrl = uploaded.url.startsWith('http')
-      ? uploaded.url
-      : `${config.app.apiUrl.replace(/\/api\/v1\/?$/, '')}${uploaded.url}`;
-    const visibility = req.query?.visibility === 'ADMIN_ONLY' ? 'ADMIN_ONLY' : 'EVERYONE';
-    return res.status(201).send({ fileUrl, messageType, visibility });
+    if (messageType === 'IMAGE' && detectImageMimeType(buffer) !== part.mimetype) {
+      return res.status(415).send({ message: 'The uploaded file is not a valid supported image' });
+    }
+    const visibilityValue = typeof req.query?.visibility === 'string' ? req.query.visibility : 'EVERYONE';
+    if (!['EVERYONE', 'ADMIN_ONLY'].includes(visibilityValue)) {
+      return res.status(400).send({ message: 'Invalid media visibility' });
+    }
+
+    try {
+      const safeFilename = part.filename.replace(/[^a-zA-Z0-9._-]/g, '-');
+      const storage = createStorageProvider(
+        config.storage.provider,
+        config.storage.local.path,
+        '/uploads',
+        config.storage.s3,
+        config.storage.cloudinary,
+      );
+      const uploaded = await storage.upload(buffer, `chat-evidence/${req.user.id}`, `${Date.now()}-${safeFilename}`);
+      const fileUrl = uploaded.url.startsWith('http')
+        ? uploaded.url
+        : `${config.app.apiUrl.replace(/\/api\/v1\/?$/, '').replace(/\/+$/, '')}${uploaded.url}`;
+      return res.status(201).send({ fileUrl, messageType, visibility: visibilityValue });
+    } catch (error) {
+      req.log.error({ error, conversationId: req.params.id, userId: req.user.id }, 'Chat media storage upload failed');
+      return res.status(503).send({ message: 'Media upload is temporarily unavailable. Please try again.' });
+    }
   });
 
   app.patch('/conversations/:id/read', async (req: any, res) => {
