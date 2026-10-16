@@ -14,6 +14,10 @@ import { requiresManualReview } from '../config/blockchain';
 import { prisma } from '../lib/prisma';
 import { normalizeCryptoAmount } from '../utils/crypto-amount';
 import { isTestPaymentSimulationAuthorized } from '../middleware/test-payment-simulation';
+import { detectImageMimeType } from '../lib/image-signature';
+
+const allowedDisputeImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const maxDisputeImageSize = 10 * 1024 * 1024;
 
 const directCheckoutSchema = z.object({
   productId: z.string().min(1),
@@ -165,28 +169,93 @@ export default async function orderRoutes(app: FastifyInstance) {
   app.post('/:id/dispute', async (req: any, res) => {
     if (!String(req.headers['content-type'] || '').startsWith('multipart/form-data')) {
       if (req.body?.action === 'ESCALATE') {
-        return res.send(await DisputeService.escalateDispute(req.params.id, req.user.id, 'Buyer escalation', 'Buyer escalated the dispute to admin'));
+        try {
+          return res.send(await DisputeService.escalateDispute(req.params.id, req.user.id, 'Buyer escalation', 'Buyer escalated the dispute to admin'));
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unable to escalate dispute';
+          const statusCode = message === 'Order not found' ? 404
+            : message === 'Unauthorized' ? 403
+              : /cannot dispute|not awaiting|no longer|invalid order transition/i.test(message) ? 409
+                : 503;
+          req.log.error({ error, orderId: req.params.id, userId: req.user.id }, 'Unable to escalate order dispute');
+          return res.status(statusCode).send({
+            message: statusCode === 503 ? 'Dispute service is temporarily unavailable. Please try again.' : message,
+          });
+        }
       }
       return res.status(415).send({ message: 'A proof image is required' });
     }
+
     let description = '';
     let evidence: { fileUrl: string; fileName: string; fileType: string; fileSize: number } | undefined;
-    for await (const part of req.parts()) {
-      if (part.type === 'file') {
-        if (part.fieldname !== 'proofImage' || !part.mimetype.startsWith('image/')) {
-          return res.status(415).send({ message: 'A valid proof image is required' });
+    let storageKey: string | undefined;
+    try {
+      for await (const part of req.parts({
+        limits: { fileSize: maxDisputeImageSize, files: 1, fields: 1 },
+      })) {
+        if (part.type === 'file') {
+          if (part.fieldname !== 'proofImage' || !allowedDisputeImageTypes.has(part.mimetype)) {
+            return res.status(415).send({ message: 'A valid JPG, PNG, WEBP, or GIF proof image is required' });
+          }
+          const buffer = await part.toBuffer();
+          if (!buffer.length) return res.status(422).send({ message: 'The proof image cannot be empty' });
+          if (detectImageMimeType(buffer) !== part.mimetype) {
+            return res.status(415).send({ message: 'The uploaded file is not a valid supported image' });
+          }
+          const safeFilename = part.filename.split(/[\\/]/).pop()?.replace(/[^a-zA-Z0-9._-]/g, '-') || 'proof-image';
+          const storage = createStorageProvider(config.storage.provider, config.storage.local.path, '/uploads', config.storage.s3, config.storage.cloudinary);
+          const uploaded = await storage.upload(buffer, `disputes/${req.user.id}`, `${Date.now()}-${safeFilename}`);
+          storageKey = uploaded.key;
+          evidence = { fileUrl: uploaded.url, fileName: safeFilename, fileType: part.mimetype, fileSize: buffer.length };
+        } else if (part.fieldname === 'description') {
+          description = String(part.value).trim();
+        } else {
+          return res.status(400).send({ message: 'Only proofImage and description fields are supported' });
         }
-        const buffer = await part.toBuffer();
-        if (!buffer.length) return res.status(422).send({ message: 'The proof image cannot be empty' });
-        const storage = createStorageProvider(config.storage.provider, config.storage.local.path, '/uploads', config.storage.s3);
-        const uploaded = await storage.upload(buffer, `disputes/${req.user.id}`, `${Date.now()}-${part.filename.replace(/[^a-zA-Z0-9._-]/g, '-')}`);
-        evidence = { fileUrl: uploaded.url, fileName: part.filename, fileType: part.mimetype, fileSize: buffer.length };
-      } else if (part.fieldname === 'description') {
-        description = String(part.value).trim();
       }
+    } catch (error) {
+      const code = error instanceof Error && 'code' in error
+        ? (error as NodeJS.ErrnoException).code
+        : undefined;
+      if (code === 'FST_REQ_FILE_TOO_LARGE') {
+        return res.status(413).send({ message: 'Dispute proof images must be 10MB or smaller' });
+      }
+      req.log.error({ error, orderId: req.params.id, userId: req.user.id }, 'Unable to process order dispute evidence upload');
+      if (storageKey) {
+        try {
+          const storage = createStorageProvider(config.storage.provider, config.storage.local.path, '/uploads', config.storage.s3, config.storage.cloudinary);
+          await storage.delete(storageKey);
+        } catch (cleanupError) {
+          req.log.error({ error: cleanupError, orderId: req.params.id }, 'Unable to clean up failed order dispute evidence upload');
+        }
+      }
+      return res.status(503).send({ message: 'Dispute evidence upload is temporarily unavailable. Please try again.' });
     }
+
     if (!description || !evidence) return res.status(422).send({ message: 'Description and proof image are required' });
-    return res.status(201).send(await DisputeService.escalateDispute(req.params.id, req.user.id, 'Buyer dispute', description, evidence));
+    if (description.length > 2000) return res.status(422).send({ message: 'Dispute description must be 2000 characters or fewer' });
+    try {
+      const dispute = await DisputeService.escalateDispute(req.params.id, req.user.id, 'Buyer dispute', description, evidence);
+      return res.status(201).send(dispute);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to open dispute';
+      const statusCode = message === 'Order not found' ? 404
+        : message === 'Unauthorized' ? 403
+          : /cannot dispute|not awaiting|no longer|invalid order transition/i.test(message) ? 409
+            : 503;
+      req.log.error({ error, orderId: req.params.id, userId: req.user.id }, 'Unable to create order dispute');
+      if (storageKey) {
+        try {
+          const storage = createStorageProvider(config.storage.provider, config.storage.local.path, '/uploads', config.storage.s3, config.storage.cloudinary);
+          await storage.delete(storageKey);
+        } catch (cleanupError) {
+          req.log.error({ error: cleanupError, orderId: req.params.id }, 'Unable to clean up unreferenced order dispute evidence');
+        }
+      }
+      return res.status(statusCode).send({
+        message: statusCode === 503 ? 'Dispute could not be submitted right now. Please try again.' : message,
+      });
+    }
   });
   app.post('/:id/dispute/respond', async (req: any, res) => {
     const description = typeof req.body?.description === 'string' ? req.body.description.trim() : '';
