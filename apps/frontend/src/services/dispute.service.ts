@@ -1,5 +1,4 @@
 import { apiClient } from './api.client';
-import { API_URL } from '@/lib/constants';
 import type { Dispute, PaginatedResponse, DisputeEvidence } from '../types/api.types';
 
 export const disputeService = {
@@ -37,13 +36,11 @@ export const disputeService = {
     const formData = new FormData();
     formData.append('file', file);
     if (description) formData.append('description', description);
-    const token = typeof window !== 'undefined' ? localStorage.getItem('auth-storage') : '';
-    const res = await fetch(`${API_URL}/disputes/${disputeId}/evidence`, {
-      method: 'POST',
-      body: formData,
-      headers: { Authorization: `Bearer ${JSON.parse(token || '{}')?.state?.accessToken}` }
-    });
-    if (!res.ok) throw new Error('Upload failed');
-    return await res.json() as DisputeEvidence;
+    const res = await apiClient.upload<DisputeEvidence>(
+      `/disputes/${encodeURIComponent(disputeId)}/evidence`,
+      formData,
+    );
+    if (res.error) throw new Error(res.error);
+    return res.data!;
   }
 };
