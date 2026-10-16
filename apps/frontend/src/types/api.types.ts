@@ -97,7 +97,7 @@ export interface LedgerEntry {
 }
 export interface Dispute { id: string; disputeNumber?: string; disputeType?: 'STANDARD' | 'P2P'; orderId: string; buyerId?: string; sellerId?: string; initiatorId?: string; respondentId?: string; reason: string; description?: string; status: string; resolution?: string | null; resolvedAt?: string | null; sellerResponseDeadline?: string | null; buyerResponseDeadline?: string | null; createdAt: string; updatedAt?: string; order?: { orderNumber: string; totalAmount?: number | string; currency?: string; status?: string; conversation?: { id: string } | null }; timeline?: DisputeTimeline[]; evidence?: DisputeEvidence[]; }
 export interface DisputeMessage { id: string; disputeId: string; senderId: string; text: string; createdAt: string; }
-export interface DisputeEvidence { id: string; disputeId: string; uploaderId?: string; uploadedBy?: string; fileUrl: string; description?: string; createdAt: string; }
+export interface DisputeEvidence { id: string; disputeId: string; uploaderId?: string; uploadedBy?: string; fileUrl: string; fileName?: string; fileType?: string; fileSize?: number; description?: string; createdAt: string; }
 export interface DisputeTimeline { id: string; disputeId: string; action: string; description: string; createdAt: string; }
 export interface Message { id: string; conversationId: string; senderId: string; content?: string | null; text?: string; messageType?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'SYSTEM'; fileUrl?: string | null; imageUrl?: string | null; visibility?: 'EVERYONE' | 'ADMIN_ONLY'; isRead: boolean; createdAt: string; sender?: { id: string; profile?: { username?: string; displayName?: string } | null }; }
 export interface Conversation {
