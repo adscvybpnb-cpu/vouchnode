@@ -1,9 +1,8 @@
 import { Worker } from 'bullmq';
 import { redis } from '../lib/redis';
 import { prisma } from '../lib/prisma';
+import { logger } from '../lib/logger';
 import { OrderService } from '../services/order.service';
-import { WalletRepository } from '../repositories/wallet.repository';
-import { escrowReleaseQueue } from './queue';
 import { swapQueue } from './queue';
 import { convertAssetAmount } from '../lib/internal-wallet';
 import { Decimal } from '@prisma/client/runtime/library';
@@ -23,31 +22,14 @@ export const escrowReleaseWorker = new Worker('ESCROW_RELEASE_QUEUE', async job 
   await prisma.$transaction(async (tx) => {
     const transaction = await tx.transaction.findUnique({ where: { id: transactionId } });
     if (!transaction || !transaction.escrowReleaseAt || transaction.escrowReleaseAt > new Date()) return;
-    const order = await tx.order.findUnique({
-      where: { id: transaction.orderId },
-      select: { status: true },
+    await tx.transaction.updateMany({
+      where: { id: transactionId, escrowReleaseAt: transaction.escrowReleaseAt },
+      data: { escrowReleaseAt: null },
     });
-    if (!order || ['DISPUTE_OPEN', 'DISPUTED_WAITING_SELLER', 'DISPUTED_WAITING_BUYER', 'ESCALATED_TO_ADMIN'].includes(order.status)) return;
-    const wallet = await WalletRepository.getOrCreate(transaction.sellerId, transaction.currency, tx);
-    await WalletRepository.moveFromPendingToAvailable(tx, wallet.id, transaction.amount, transaction.currency);
-    await tx.ledgerEntry.updateMany({
-      where: { transactionId, type: 'SALE', status: 'PENDING' },
-      data: { status: 'COMPLETED', completedAt: new Date() }
-    });
-    await tx.ledgerEntry.create({
-      data: {
-        transactionId,
-        walletId: wallet.id,
-        type: 'ESCROW_RELEASE',
-        amount: transaction.amount,
-        currency: transaction.currency,
-        direction: 'CREDIT',
-        status: 'COMPLETED',
-        referenceId: transaction.orderId,
-        description: '24-hour escrow hold released'
-      }
-    });
-    await tx.transaction.update({ where: { id: transactionId }, data: { escrowReleaseAt: null } });
+    logger.warn(
+      { orderId: transaction.orderId, transactionId },
+      'Ignored legacy timed escrow release; seller funds are released only by order confirmation',
+    );
   });
 }, { connection: redis });
 
