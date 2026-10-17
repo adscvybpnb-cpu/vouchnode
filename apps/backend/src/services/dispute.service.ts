@@ -7,6 +7,7 @@ import { WalletRepository } from '../repositories/wallet.repository';
 import { logger } from '../lib/logger';
 import { OrderService } from './order.service';
 import { ReferralService } from './referral.service';
+import { releasePendingSellerEscrow } from '../lib/order-escrow';
 
 export class DisputeService {
   static async escalateDispute(orderId: string, buyerId: string, reason: string, description: string, evidence?: { fileUrl: string; fileName: string; fileType: string; fileSize: number }) {
@@ -293,19 +294,15 @@ export class DisputeService {
           ? (transaction.metadata as { paymentMethod?: string }).paymentMethod
           : undefined;
         if (paymentMethod === 'DIRECT_INVOICE') await OrderService.ensureDirectInvoiceEscrow(tx, dispute.orderId);
-        const escrowAmount = paymentMethod === 'DIRECT_INVOICE' ? dispute.order.sellerAmount : transaction.amount;
         const sellerWallet = await WalletRepository.getOrCreate(transaction.sellerId, transaction.currency, tx);
-        const released = await tx.wallet.updateMany({
-          where: { id: sellerWallet.id, pendingBalance: { gte: escrowAmount } },
-          data: {
-            pendingBalance: { decrement: escrowAmount },
-            availableBalance: { increment: escrowAmount }
-          }
+        await releasePendingSellerEscrow(tx, {
+          transactionId: transaction.id,
+          orderId: dispute.orderId,
+          walletId: sellerWallet.id,
+          currency: transaction.currency,
+          amount: dispute.order.sellerAmount,
+          description: 'Admin-approved escrow release',
         });
-        if (released.count !== 1) throw Object.assign(new Error('Escrow balance is unavailable for this dispute'), { statusCode: 409 });
-        await tx.ledgerEntry.updateMany({ where: { transactionId: transaction.id, type: 'SALE', status: 'PENDING' }, data: { status: 'COMPLETED', completedAt: new Date() } });
-        await tx.ledgerEntry.create({ data: { transactionId: transaction.id, walletId: sellerWallet.id, type: 'ESCROW_RELEASE', amount: escrowAmount, currency: transaction.currency, direction: 'CREDIT', status: 'COMPLETED', referenceId: dispute.orderId, description: 'Admin-approved escrow release' } });
-        await tx.transaction.update({ where: { id: transaction.id }, data: { status: 'COMPLETED', escrowReleaseAt: null } });
       }
       
       await tx.auditLog.create({
