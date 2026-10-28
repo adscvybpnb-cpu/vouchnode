@@ -11,8 +11,8 @@ export function rememberReferralCode(value: string | null) {
   }
 }
 
-export function getReferralCode(search: string) {
-  const queryReferralCode = new URLSearchParams(search).get('ref')?.trim();
+export function getReferralCode(search?: string | null) {
+  const queryReferralCode = new URLSearchParams(typeof search === 'string' ? search : '').get('ref')?.trim();
   if (queryReferralCode && queryReferralCode.length <= 128) {
     rememberReferralCode(queryReferralCode);
     return queryReferralCode;
