@@ -9,6 +9,7 @@ import { useSocket } from '../hooks/useSocket';
 import { usePathname } from 'next/navigation';
 import { usePushNotifications, usePushSoundListener } from '../hooks/usePushNotifications';
 import { API_URL } from '../lib/constants';
+import { rememberReferralCode } from '../lib/referral-attribution';
 
 const ReactQueryDevtools = dynamic(
   () => import('@tanstack/react-query-devtools').then((module) => module.ReactQueryDevtools),
@@ -37,6 +38,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void useAuthStore.persist.rehydrate();
   }, []);
+
+  useEffect(() => {
+    rememberReferralCode(new URLSearchParams(window.location.search).get('ref'));
+  }, [pathname]);
 
   useEffect(() => {
     if (!presenceSocket) return;
