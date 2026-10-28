@@ -8,6 +8,8 @@ import { getTokenDeployment, isAutomatedTokenNetwork } from '../config/blockchai
 import { requiresManualReview } from '../config/blockchain';
 import { BlockchainConfirmationService } from './blockchain-confirmation.service';
 import { amountMatchesTolerance, normalizeCryptoAmount } from '../utils/crypto-amount';
+import { FirstDepositBonusService } from './first-deposit-bonus.service';
+import { PriceService } from './price.service';
 
 const SUPPORTED_NETWORKS = new Set<DepositSessionNetwork>([
   'BTC', 'BCH', 'LTC', 'TRC20', 'BEP20', 'ERC20', 'POLYGON',
@@ -19,6 +21,25 @@ export class DepositScannerService {
   private static readonly pendingCheckoutScans = new Map<string, Promise<number>>();
   private static readonly checkoutScanStartedAt = new Map<string, number>();
   private static readonly CHECKOUT_SCAN_COOLDOWN_MS = 15_000;
+
+  private static async withSerializableRetry<T>(operation: () => Promise<T>) {
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        return await operation();
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2034' &&
+          attempt < 3
+        ) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw new Error('Deposit settlement retries were exhausted.');
+  }
 
   static scanPendingEvmDeposits(options: { blockLookback?: number } = {}) {
     if (this.pendingEvmScan) return this.pendingEvmScan;
@@ -442,7 +463,34 @@ export class DepositScannerService {
     }
 
     try {
-      const completed = await prisma.$transaction(async (tx) => {
+      let depositUsdValue: Prisma.Decimal | null = null;
+      const walletDepositSession = await prisma.depositSession.findFirst({
+        where: { id: sessionId, userId, orderId: null, status: 'PENDING' },
+        select: { currency: true, network: true },
+      });
+      if (walletDepositSession && await FirstDepositBonusService.isEligible(userId)) {
+        try {
+          const normalizedAmount = normalizeCryptoAmount(
+            amount,
+            walletDepositSession.currency,
+            walletDepositSession.network,
+          );
+          depositUsdValue = await PriceService.convertCryptoToUsd(
+            normalizedAmount,
+            walletDepositSession.currency,
+          );
+        } catch (error) {
+          console.error(JSON.stringify({
+            event: 'first_deposit_bonus_valuation_failed',
+            sessionId,
+            userId,
+            currency: walletDepositSession.currency,
+            error: error instanceof Error ? error.message : String(error),
+          }));
+        }
+      }
+
+      const settlement = await this.withSerializableRetry(() => prisma.$transaction(async (tx) => {
         const now = new Date();
         const session = await tx.depositSession.findFirst({ where: { id: sessionId, userId } });
         if (!session) throw new Error('Deposit session not found.');
@@ -501,11 +549,25 @@ export class DepositScannerService {
           });
         }
 
-        return tx.depositSession.findUniqueOrThrow({ where: { id: sessionId } });
-      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+        const firstDepositBonusAwarded = depositUsdValue
+          ? await FirstDepositBonusService.grantForCompletedWalletDeposit(tx, {
+            userId,
+            depositSessionId: session.id,
+            depositCurrency: session.currency,
+            depositAmount: new Prisma.Decimal(normalizedAmount),
+            depositUsdValue,
+            completedAt: now,
+          })
+          : false;
+        const completed = await tx.depositSession.findUniqueOrThrow({ where: { id: sessionId } });
+        return { completed, firstDepositBonusAwarded };
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
+      const { completed, firstDepositBonusAwarded } = settlement;
       await NotificationService.createNotification({
         userId, type: 'DEPOSIT_CONFIRMED', title: 'Deposit Credited',
-        message: `Your automated deposit of ${amount} ${completed.currency} has been successfully processed.`,
+        message: firstDepositBonusAwarded
+          ? `Your automated deposit of ${amount} ${completed.currency} has been processed. A $10 USDT first-deposit bonus has been added to your wallet.`
+          : `Your automated deposit of ${amount} ${completed.currency} has been successfully processed.`,
         data: { depositSessionId: completed.id, amount, currency: completed.currency },
         link: '/dashboard/wallet',
       });
