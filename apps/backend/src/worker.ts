@@ -11,13 +11,16 @@ import { BlockchainObservationWorker } from './services/blockchain-observation-w
 import { BlockchainSettlementWorker } from './services/blockchain-settlement-worker';
 import { validateRpcNodes } from './config/rpc-health';
 import { startRpcEndpointEnvWatcher } from './config/rpc-endpoint-pools';
+import { PriceSyncService } from './services/price-sync.service';
 
 let blockchainObservationWorker: BlockchainObservationWorker | undefined;
 let blockchainSettlementWorker: BlockchainSettlementWorker | undefined;
 let stopRpcEndpointEnvWatcher: (() => void) | undefined;
+let stopPricePolling: (() => void) | undefined;
 
 void (async () => {
   await validateRpcNodes();
+  stopPricePolling = PriceSyncService.startPolling();
   stopRpcEndpointEnvWatcher = startRpcEndpointEnvWatcher((networks) => {
     console.info(JSON.stringify({ event: 'rpc_endpoint_env_changed', networks }));
     void validateRpcNodes().catch((error) => {
@@ -39,6 +42,7 @@ void (async () => {
 });
 
 const shutdown = async () => {
+  stopPricePolling?.();
   stopRpcEndpointEnvWatcher?.();
   blockchainObservationWorker?.stop();
   blockchainSettlementWorker?.stop();
