@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { authService } from '@/services/auth.service';
+import { clearReferralCode, getReferralCode } from '@/lib/referral-attribution';
 
 // ─── Zod schemas ─────────────────────────────────────────────────────────────
 
@@ -286,7 +287,7 @@ export default function RegisterPage() {
   const passwordWatch = step1Form.watch('password', '');
 
   useEffect(() => {
-    setReferralCode(new URLSearchParams(window.location.search).get('ref')?.trim() || '');
+    setReferralCode(getReferralCode(window.location.search));
   }, []);
 
   // ── Step 1: advance to step 2 (local validation only, no API call) ─────────
@@ -316,6 +317,7 @@ export default function RegisterPage() {
         ...step2Payload,
         ...(referralCode ? { referralCode } : {}),
       });
+      clearReferralCode();
 
       // `user` is optional because the API response may omit it. Never read a
       // token or update auth state here: pending accounts have no access token.
