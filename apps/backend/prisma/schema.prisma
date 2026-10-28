@@ -46,44 +46,45 @@ model User {
   lastLoginIp             String?
 
   profile             UserProfile?
-  referredBy          User?                 @relation("UserReferrals", fields: [referredById], references: [id], onDelete: SetNull)
-  referredUsers       User[]                @relation("UserReferrals")
-  referralCommissions ReferralCommission[]  @relation("ReferralCommissionReferrer")
-  referralEarnings    ReferralCommission[]  @relation("ReferralCommissionReferredUser")
+  referredBy          User?                @relation("UserReferrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referredUsers       User[]               @relation("UserReferrals")
+  referralCommissions ReferralCommission[] @relation("ReferralCommissionReferrer")
+  referralEarnings    ReferralCommission[] @relation("ReferralCommissionReferredUser")
   roles               UserRole[]
   sessions            Session[]
   wallets             Wallet[]
   sellerProfile       Seller?
   kycRequests         KycRequest[]
-  orders              Order[]           @relation("BuyerOrders")
-  sellerOrders        Order[]           @relation("SellerOrders")
-  tradesAsBuyer       Trade[]           @relation("TradeBuyer")
-  tradesAsSeller      Trade[]           @relation("TradeSeller")
+  orders              Order[]              @relation("BuyerOrders")
+  sellerOrders        Order[]              @relation("SellerOrders")
+  tradesAsBuyer       Trade[]              @relation("TradeBuyer")
+  tradesAsSeller      Trade[]              @relation("TradeSeller")
   swapTransactions    SwapTransaction[]
-  sentMessages        Message[]         @relation("SentMessages")
+  sentMessages        Message[]            @relation("SentMessages")
   notifications       Notification[]
   pushSubscriptions   PushSubscription[]
-  reviewsGiven        Review[]          @relation("ReviewsGiven")
-  reviewsReceived     Review[]          @relation("ReviewsReceived")
-  reportsSubmitted    Report[]          @relation("ReportsSubmitted")
-  reportsReceived     Report[]          @relation("ReportsReceived")
-  disputesAsBuyer     Dispute[]         @relation("BuyerDisputes")
-  disputesAsSeller    Dispute[]         @relation("SellerDisputes")
+  reviewsGiven        Review[]             @relation("ReviewsGiven")
+  reviewsReceived     Review[]             @relation("ReviewsReceived")
+  reportsSubmitted    Report[]             @relation("ReportsSubmitted")
+  reportsReceived     Report[]             @relation("ReportsReceived")
+  disputesAsBuyer     Dispute[]            @relation("BuyerDisputes")
+  disputesAsSeller    Dispute[]            @relation("SellerDisputes")
   auditLogs           AuditLog[]
   fraudFlags          FraudFlag[]
   depositSessions     DepositSession[]
+  firstDepositBonus   FirstDepositBonus?
   cryptoDeposits      CryptoDeposit[]
-  buyerConversations  Conversation[]    @relation("BuyerConversations")
-  sellerConversations Conversation[]    @relation("SellerConversations")
-  followers           Follow[]          @relation("UserFollowers")
-  following           Follow[]          @relation("UserFollowing")
+  buyerConversations  Conversation[]       @relation("BuyerConversations")
+  sellerConversations Conversation[]       @relation("SellerConversations")
+  followers           Follow[]             @relation("UserFollowers")
+  following           Follow[]             @relation("UserFollowing")
   favoriteListings    FavoriteListing[]
   savedSearches       SavedSearch[]
   p2pOffers           P2POffer[]
-  p2pOrdersAsBuyer    P2POrder[]        @relation("P2POrderBuyer")
-  p2pOrdersAsSeller   P2POrder[]        @relation("P2POrderSeller")
-  p2pDisputesAsBuyer  P2PDispute[]      @relation("P2PDisputeBuyer")
-  p2pDisputesAsSeller P2PDispute[]      @relation("P2PDisputeSeller")
+  p2pOrdersAsBuyer    P2POrder[]           @relation("P2POrderBuyer")
+  p2pOrdersAsSeller   P2POrder[]           @relation("P2POrderSeller")
+  p2pDisputesAsBuyer  P2PDispute[]         @relation("P2PDisputeBuyer")
+  p2pDisputesAsSeller P2PDispute[]         @relation("P2PDisputeSeller")
 
   @@index([email])
   @@index([status])
@@ -315,11 +316,11 @@ model Currency {
   withdrawalFeePercent Decimal      @default(0) @db.Decimal(5, 2)
   iconUrl              String?
 
-  wallets         Wallet[]
-  deposits        Deposit[]
-  withdrawals     Withdrawal[]
-  ledgerEntries   LedgerEntry[]
-  walletAddresses WalletAddress[]
+  wallets             Wallet[]
+  deposits            Deposit[]
+  withdrawals         Withdrawal[]
+  ledgerEntries       LedgerEntry[]
+  walletAddresses     WalletAddress[]
   referralCommissions ReferralCommission[]
 }
 
@@ -452,19 +453,19 @@ model ProductInventory {
 // =====================
 
 model Seller {
-  id                String       @id @default(cuid())
-  userId            String       @unique
-  shopName          String       @unique
-  shopSlug          String       @unique
+  id                String               @id @default(cuid())
+  userId            String               @unique
+  shopName          String               @unique
+  shopSlug          String               @unique
   description       String?
   logoUrl           String?
   bannerUrl         String?
-  status            SellerStatus @default(PENDING)
+  status            SellerStatus         @default(PENDING)
   onboardingMode    SellerOnboardingMode @default(SECURE_VERIFICATION)
   kycSkippedAt      DateTime?
-  verificationLevel Int          @default(0) // 0=unverified, 1=basic, 2=full
-  riskScore         Int          @default(0)
-  commissionRate    Decimal      @default(0) @db.Decimal(5, 2) // override platform default
+  verificationLevel Int                  @default(0) // 0=unverified, 1=basic, 2=full
+  riskScore         Int                  @default(0)
+  commissionRate    Decimal              @default(0) @db.Decimal(5, 2) // override platform default
 
   // Stats (updated by background job)
   totalSales               Int     @default(0)
@@ -660,15 +661,15 @@ model Order {
   cancelledAt DateTime?
   isEscalated Boolean   @default(false)
 
-  buyer          User              @relation("BuyerOrders", fields: [buyerId], references: [id])
-  seller         User              @relation("SellerOrders", fields: [sellerId], references: [id])
-  product        Product           @relation(fields: [productId], references: [id])
-  transaction    Transaction?
-  depositSession DepositSession?
-  dispute        Dispute?
-  inventory      ProductInventory?
-  conversation   Conversation?
-  reviews        Review[]
+  buyer              User                @relation("BuyerOrders", fields: [buyerId], references: [id])
+  seller             User                @relation("SellerOrders", fields: [sellerId], references: [id])
+  product            Product             @relation(fields: [productId], references: [id])
+  transaction        Transaction?
+  depositSession     DepositSession?
+  dispute            Dispute?
+  inventory          ProductInventory?
+  conversation       Conversation?
+  reviews            Review[]
   referralCommission ReferralCommission?
 
   @@index([buyerId])
@@ -706,9 +707,9 @@ model ReferralCommission {
   currency       String   @default("USDT")
   createdAt      DateTime @default(now())
 
-  order        Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  referrer     User  @relation("ReferralCommissionReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
-  referredUser User  @relation("ReferralCommissionReferredUser", fields: [referredUserId], references: [id], onDelete: Cascade)
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  referrer     User     @relation("ReferralCommissionReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referredUser User     @relation("ReferralCommissionReferredUser", fields: [referredUserId], references: [id], onDelete: Cascade)
   currency_rel Currency @relation(fields: [currency], references: [code])
 
   @@index([referrerId, createdAt])
@@ -1014,14 +1015,31 @@ model DepositSession {
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
 
-  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  order            Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  detectedDeposits DetectedDeposit[]
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order             Order?             @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  detectedDeposits  DetectedDeposit[]
+  firstDepositBonus FirstDepositBonus?
 
   @@index([userId, status])
   @@index([orderId])
   @@index([assignedAddress, network])
   @@index([status, expiresAt])
+}
+
+model FirstDepositBonus {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  depositSessionId String   @unique
+  depositCurrency  String
+  depositAmount    Decimal  @db.Decimal(30, 18)
+  depositUsdValue  Decimal  @db.Decimal(20, 8)
+  bonusAmount      Decimal  @default(10) @db.Decimal(20, 8)
+  createdAt        DateTime @default(now())
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  depositSession DepositSession @relation(fields: [depositSessionId], references: [id], onDelete: Restrict)
+
+  @@index([createdAt])
 }
 
 model CryptoDeposit {
@@ -1494,14 +1512,14 @@ model Notification {
 }
 
 model PushSubscription {
-  id        String   @id @default(cuid())
-  userId    String
-  endpoint  String   @unique @db.Text
-  p256dh    String
-  auth      String
-  userAgent String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String    @id @default(cuid())
+  userId     String
+  endpoint   String    @unique @db.Text
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
   lastUsedAt DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
