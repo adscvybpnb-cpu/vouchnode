@@ -9,7 +9,7 @@ import { useSocket } from '../hooks/useSocket';
 import { usePathname } from 'next/navigation';
 import { usePushNotifications, usePushSoundListener } from '../hooks/usePushNotifications';
 import { API_URL } from '../lib/constants';
-import { rememberReferralCode } from '../lib/referral-attribution';
+import { getReferralCode } from '../lib/referral-attribution';
 
 const ReactQueryDevtools = dynamic(
   () => import('@tanstack/react-query-devtools').then((module) => module.ReactQueryDevtools),
@@ -29,7 +29,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   const { accessToken, isAuthenticated, updateUser } = useAuthStore();
   const hasSession = isAuthenticated && hasUsableAccessToken(accessToken);
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '';
   const isAdminRoute = pathname === '/admin' || pathname.startsWith('/admin/');
   const { socket: presenceSocket } = useSocket('/presence', !isAdminRoute);
   usePushNotifications(hasSession);
@@ -40,7 +40,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    rememberReferralCode(new URLSearchParams(window.location.search).get('ref'));
+    if (typeof window === 'undefined') return;
+    getReferralCode(window.location?.search ?? '');
   }, [pathname]);
 
   useEffect(() => {
