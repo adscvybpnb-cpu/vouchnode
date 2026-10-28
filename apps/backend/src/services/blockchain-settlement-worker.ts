@@ -14,6 +14,8 @@ import { OrderService } from './order.service';
 import { emitMarketplaceOrderEvent } from '../websocket/socket.server';
 import { amountMatchesTolerance } from '../utils/crypto-amount';
 import { RpcPoolExhaustedError } from './rpc-endpoint-pool';
+import { FirstDepositBonusService } from './first-deposit-bonus.service';
+import { PriceService } from './price.service';
 
 const MIN_INTERVAL_MS = 30_000;
 const INTERVAL_RANGE_MS = 10_000;
@@ -147,6 +149,7 @@ export class BlockchainSettlementWorker {
         depositSession: {
           select: {
             id: true,
+            userId: true,
             orderId: true,
             order: { select: { status: true } },
           },
@@ -251,6 +254,7 @@ export class BlockchainSettlementWorker {
             depositSession: {
               select: {
                 id: true,
+                userId: true,
                 orderId: true,
                 status: true,
                 assignedAddress: true,
@@ -264,6 +268,24 @@ export class BlockchainSettlementWorker {
         if (orderSettlement?.depositSession?.orderId) {
           await this.settleOrderDeposit(orderSettlement);
           return;
+        }
+
+        let depositUsdValue: Prisma.Decimal | null = null;
+        const walletDepositSession = orderSettlement?.depositSession;
+        if (walletDepositSession && await FirstDepositBonusService.isEligible(walletDepositSession.userId)) {
+          try {
+            depositUsdValue = await PriceService.convertCryptoToUsd(
+              orderSettlement.amount,
+              walletDepositSession.currency,
+            );
+          } catch (error) {
+            logger.error({
+              depositId,
+              userId: walletDepositSession.userId,
+              currency: walletDepositSession.currency,
+              error: error instanceof Error ? error.message : String(error),
+            }, 'First-deposit bonus valuation failed; deposit will settle without promotional credit');
+          }
         }
 
         const notification = await prisma.$transaction(async (tx) => {
@@ -338,7 +360,22 @@ export class BlockchainSettlementWorker {
             where: { id: detected.id },
             data: { status: 'SETTLED', walletId: wallet.id, settledAt: now, lastCheckedAt: now },
           });
-          return { userId: session.userId, amount: amount.toString(), currency: session.currency };
+          const firstDepositBonusAwarded = depositUsdValue
+            ? await FirstDepositBonusService.grantForCompletedWalletDeposit(tx, {
+              userId: session.userId,
+              depositSessionId: session.id,
+              depositCurrency: session.currency,
+              depositAmount: amount,
+              depositUsdValue,
+              completedAt: now,
+            })
+            : false;
+          return {
+            userId: session.userId,
+            amount: amount.toString(),
+            currency: session.currency,
+            firstDepositBonusAwarded,
+          };
         }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
         if (notification) {
@@ -347,7 +384,9 @@ export class BlockchainSettlementWorker {
               userId: notification.userId,
               type: 'DEPOSIT_CONFIRMED',
               title: 'Deposit Credited',
-              message: `Your automated deposit of ${notification.amount} ${notification.currency} has been successfully processed.`,
+              message: notification.firstDepositBonusAwarded
+                ? `Your automated deposit of ${notification.amount} ${notification.currency} has been processed. A $10 USDT first-deposit bonus has been added to your wallet.`
+                : `Your automated deposit of ${notification.amount} ${notification.currency} has been successfully processed.`,
               data: { depositId, amount: notification.amount, currency: notification.currency },
               link: '/dashboard/wallet',
             });
