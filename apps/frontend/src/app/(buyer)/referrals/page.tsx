@@ -15,7 +15,7 @@ interface ReferralOverview {
 function buildReferralUrl(referralCode: string) {
   const runtimeOrigin = typeof window !== 'undefined' ? window.location.origin : '';
   const baseUrl = (runtimeOrigin || APP_URL).replace(/\/+$/, '');
-  return `${baseUrl}/register?ref=${encodeURIComponent(referralCode)}`;
+  return `${baseUrl}/?ref=${encodeURIComponent(referralCode)}`;
 }
 
 export default function ReferralsPage() {
