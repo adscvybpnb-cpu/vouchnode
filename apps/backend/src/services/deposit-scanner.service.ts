@@ -504,6 +504,7 @@ export class DepositScannerService {
           data: {
             status: 'COMPLETED',
             amount: normalizedAmount,
+            ...(depositUsdValue ? { usdAmount: depositUsdValue } : {}),
             transactionHash,
             completedAt: now
           }

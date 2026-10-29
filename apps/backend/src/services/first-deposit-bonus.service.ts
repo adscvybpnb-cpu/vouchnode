@@ -5,17 +5,37 @@ import { WalletRepository } from '../repositories/wallet.repository';
 export const FIRST_DEPOSIT_BONUS_MINIMUM_USD = new Prisma.Decimal(50);
 export const FIRST_DEPOSIT_BONUS_AMOUNT_USDT = new Prisma.Decimal(10);
 
-export function qualifiesForFirstDepositBonus(depositUsdValue: Prisma.Decimal) {
-  return depositUsdValue.gte(FIRST_DEPOSIT_BONUS_MINIMUM_USD);
+export function meetsFirstDepositBonusThreshold(totalDepositedUsd: Prisma.Decimal) {
+  return totalDepositedUsd.gte(FIRST_DEPOSIT_BONUS_MINIMUM_USD);
 }
 
 export class FirstDepositBonusService {
+  static async getEligibility(userId: string) {
+    const [claimedBonus, priorLegacyDeposit, deposits] = await Promise.all([
+      prisma.firstDepositBonus.findUnique({
+        where: { userId },
+        select: { id: true },
+      }),
+      prisma.deposit.findFirst({
+        where: { status: 'CONFIRMED', wallet: { userId } },
+        select: { id: true },
+      }),
+      prisma.depositSession.aggregate({
+        where: { userId, orderId: null, status: 'COMPLETED' },
+        _sum: { usdAmount: true },
+      }),
+    ]);
+    const totalDepositedUsd = new Prisma.Decimal(deposits._sum.usdAmount?.toString() ?? '0');
+    const claimed = Boolean(claimedBonus);
+    return {
+      eligible: !claimed && !priorLegacyDeposit && totalDepositedUsd.lt(FIRST_DEPOSIT_BONUS_MINIMUM_USD),
+      claimed,
+      totalDepositedUsd: Number(totalDepositedUsd.toString()),
+    };
+  }
+
   static async isEligible(userId: string) {
-    const claimedBonus = await prisma.firstDepositBonus.findUnique({
-      where: { userId },
-      select: { id: true },
-    });
-    return !claimedBonus;
+    return (await this.getEligibility(userId)).eligible;
   }
 
   static async grantForCompletedWalletDeposit(
@@ -29,8 +49,6 @@ export class FirstDepositBonusService {
       completedAt: Date;
     },
   ) {
-    if (!qualifiesForFirstDepositBonus(input.depositUsdValue)) return false;
-
     const session = await tx.depositSession.findFirst({
       where: {
         id: input.depositSessionId,
@@ -42,22 +60,18 @@ export class FirstDepositBonusService {
     });
     if (!session) return false;
 
-    const [priorWalletDeposit, priorLegacyDeposit] = await Promise.all([
-      tx.depositSession.findFirst({
-        where: {
-          userId: input.userId,
-          orderId: null,
-          status: 'COMPLETED',
-          id: { not: input.depositSessionId },
-        },
-        select: { id: true },
-      }),
+    const [priorLegacyDeposit, deposits] = await Promise.all([
       tx.deposit.findFirst({
         where: { status: 'CONFIRMED', wallet: { userId: input.userId } },
         select: { id: true },
       }),
+      tx.depositSession.aggregate({
+        where: { userId: input.userId, orderId: null, status: 'COMPLETED' },
+        _sum: { usdAmount: true },
+      }),
     ]);
-    if (priorWalletDeposit || priorLegacyDeposit) return false;
+    const totalDepositedUsd = new Prisma.Decimal(deposits._sum.usdAmount?.toString() ?? '0');
+    if (priorLegacyDeposit || !meetsFirstDepositBonusThreshold(totalDepositedUsd)) return false;
 
     const claim = await tx.firstDepositBonus.createMany({
       data: [{

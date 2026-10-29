@@ -188,6 +188,9 @@ export function useNotifications() {
           detail: notification.data
         }));
       } else playMessageChime();
+      if (notification.type === 'DEPOSIT_CONFIRMED') {
+        window.dispatchEvent(new Event('wallet:updated'));
+      }
       if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
         const desktopNotification = new Notification(notification.title, { body: notification.message, icon: '/favicon.svg', tag: notification.id });
         desktopNotification.onclick = () => {

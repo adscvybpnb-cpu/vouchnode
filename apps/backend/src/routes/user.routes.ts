@@ -198,7 +198,7 @@ export default async function walletRoutes(app: FastifyInstance) {
 
   app.get('/first-deposit-bonus/eligibility', async (req: any, res) => {
     try {
-      return res.send({ eligible: await FirstDepositBonusService.isEligible(req.user.id) });
+      return res.send(await FirstDepositBonusService.getEligibility(req.user.id));
     } catch (error) {
       req.log.error(error, 'Unable to load first-deposit bonus eligibility');
       return res.status(500).send({

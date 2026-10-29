@@ -2,10 +2,11 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRightLeft, Check, CircleDollarSign, Clock3, Copy, Download, Loader2, Plus, RefreshCw, Send, ShieldCheck, X } from 'lucide-react';
+import { ArrowRightLeft, Check, CircleDollarSign, Clock3, Copy, Download, Gift, Loader2, Plus, RefreshCw, Send, ShieldCheck, Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { apiClient } from '@/services/api.client';
+import { useFirstDepositBonusEligibility } from '@/hooks/useFirstDepositBonusEligibility';
 import { walletService, type DepositNetwork } from '@/services/wallet.service';
 import type { AssetBalance, Deposit, PortfolioSummary, Wallet } from '@/types/api.types';
 import { ResponsiveRowCard } from '@/components/layout/ResponsiveRowCard';
@@ -89,6 +90,7 @@ const nativeDepositNetwork = (currency: string): DepositNetwork => {
 };
 
 export default function WalletPage() {
+  const { data: bonusEligibility, error: bonusEligibilityError } = useFirstDepositBonusEligibility();
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(null);
   const [selected, setSelected] = useState<AssetBalance | null>(null);
@@ -135,6 +137,7 @@ export default function WalletPage() {
   }), [portfolio]);
   const totalValue = Number(portfolio?.totalUsdBalance ?? wallet?.totalUsdBalance ?? 0);
   const total = Number.isFinite(totalValue) ? totalValue : 0;
+  const usdtAsset = assets.find((asset) => asset.currency === 'USDT');
   const depositAddress = deposit?.address || deposit?.depositAddress || '';
   const sessionAddress = depositSession?.assignedAddress || '';
   const activeDepositAddress = sessionAddress || depositAddress;
@@ -159,6 +162,12 @@ export default function WalletPage() {
   };
 
   useEffect(() => { void load(); }, []);
+
+  useEffect(() => {
+    if (bonusEligibilityError) {
+      console.error('Unable to check first-deposit wallet promotion eligibility:', bonusEligibilityError);
+    }
+  }, [bonusEligibilityError]);
 
   useEffect(() => {
     const refreshAfterP2PCompletion = () => void load();
@@ -296,7 +305,28 @@ export default function WalletPage() {
 
       <section className="relative overflow-hidden rounded-3xl border border-emerald-400/20 bg-gradient-to-br from-[#17251f] via-[#111a19] to-[#11131c] p-4 shadow-2xl shadow-black/20 sm:p-7">
         <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-emerald-400/10 blur-3xl" />
-        <div className="relative"><div className="flex items-center gap-2 text-emerald-300"><CircleDollarSign className="h-5 w-5" /><span className="text-sm font-medium">Total Wallet Balance</span></div><p className="mt-4 break-words text-4xl font-bold tracking-tight sm:text-5xl">{loading ? '—' : `$${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} <span className="text-lg font-medium text-slate-400">USD</span></p><p className="mt-3 text-sm text-slate-400">Live estimated value across your available, escrowed, and supported assets.</p><div className="mt-6 flex flex-wrap gap-3 text-xs text-slate-300"><span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5"><ShieldCheck className="mr-1 inline h-3.5 w-3.5" />Escrow protected</span><span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">9 supported assets</span></div></div>
+        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-emerald-300"><CircleDollarSign className="h-5 w-5" /><span className="text-sm font-medium">Total Wallet Balance</span></div>
+            <p className="mt-4 break-words text-4xl font-bold tracking-tight sm:text-5xl">{loading ? '—' : `$${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} <span className="text-lg font-medium text-slate-400">USD</span></p>
+            <p className="mt-3 text-sm text-slate-400">Live estimated value across your available, escrowed, and supported assets.</p>
+            <div className="mt-6 flex flex-wrap gap-3 text-xs text-slate-300"><span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5"><ShieldCheck className="mr-1 inline h-3.5 w-3.5" />Escrow protected</span><span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">9 supported assets</span></div>
+          </div>
+          {bonusEligibility?.eligible && usdtAsset && (
+            <div className="w-full rounded-2xl border border-indigo-300/20 bg-indigo-400/[0.08] p-5 lg:max-w-sm">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-400/15 text-indigo-200"><Gift className="h-5 w-5" aria-hidden="true" /></span>
+                <div>
+                  <h2 className="font-semibold text-white">Claim your $10 USDT bonus</h2>
+                  <p className="mt-1 text-sm leading-5 text-slate-300">Deposit a total of $50 or more to unlock your first-deposit bonus.</p>
+                </div>
+              </div>
+              <Button onClick={() => void openDeposit(usdtAsset)} className="mt-4 w-full bg-indigo-500 text-white hover:bg-indigo-400">
+                <Sparkles className="mr-2 h-4 w-4" aria-hidden="true" />Deposit now
+              </Button>
+            </div>
+          )}
+        </div>
       </section>
 
       <section className="overflow-hidden rounded-2xl border border-white/10 bg-[#141620] shadow-xl shadow-black/10">

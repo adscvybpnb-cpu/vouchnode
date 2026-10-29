@@ -319,6 +319,7 @@ export class BlockchainSettlementWorker {
             data: {
               status: 'COMPLETED',
               amount,
+              ...(depositUsdValue ? { usdAmount: depositUsdValue } : {}),
               transactionHash: detected.transactionHash,
               completedAt: now,
             },

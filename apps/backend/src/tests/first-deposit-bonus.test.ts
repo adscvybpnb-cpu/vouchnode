@@ -4,12 +4,14 @@ import { prisma } from '../lib/prisma';
 import { WalletRepository } from '../repositories/wallet.repository';
 import {
   FirstDepositBonusService,
-  qualifiesForFirstDepositBonus,
+  meetsFirstDepositBonusThreshold,
 } from '../services/first-deposit-bonus.service';
 
 vi.mock('../lib/prisma', () => ({
   prisma: {
     firstDepositBonus: { findUnique: vi.fn() },
+    deposit: { findFirst: vi.fn() },
+    depositSession: { aggregate: vi.fn() },
   },
 }));
 
@@ -18,8 +20,12 @@ afterEach(() => {
 });
 
 describe('first-deposit bonus eligibility threshold', () => {
-  it('keeps the promotion visible until the user has actually claimed the bonus', async () => {
+  it('keeps the promotion visible while cumulative completed deposits are below $50', async () => {
     vi.mocked(prisma.firstDepositBonus.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.deposit.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.depositSession.aggregate).mockResolvedValue({
+      _sum: { usdAmount: new Prisma.Decimal('25') },
+    } as any);
 
     await expect(FirstDepositBonusService.isEligible('user-1')).resolves.toBe(true);
     expect(prisma.firstDepositBonus.findUnique).toHaveBeenCalledWith({
@@ -28,21 +34,36 @@ describe('first-deposit bonus eligibility threshold', () => {
     });
   });
 
+  it('hides the promotion after cumulative completed deposits reach $50', async () => {
+    vi.mocked(prisma.firstDepositBonus.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.deposit.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.depositSession.aggregate).mockResolvedValue({
+      _sum: { usdAmount: new Prisma.Decimal('50') },
+    } as any);
+
+    await expect(FirstDepositBonusService.isEligible('user-1')).resolves.toBe(false);
+  });
+
   it('hides the promotion after a bonus claim exists', async () => {
     vi.mocked(prisma.firstDepositBonus.findUnique).mockResolvedValue({ id: 'claim-1' } as any);
+    vi.mocked(prisma.deposit.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.depositSession.aggregate).mockResolvedValue({ _sum: { usdAmount: null } } as any);
 
     await expect(FirstDepositBonusService.isEligible('user-1')).resolves.toBe(false);
   });
 
   it('requires at least $50 USD equivalent', () => {
-    expect(qualifiesForFirstDepositBonus(new Prisma.Decimal('49.99999999'))).toBe(false);
-    expect(qualifiesForFirstDepositBonus(new Prisma.Decimal('50'))).toBe(true);
-    expect(qualifiesForFirstDepositBonus(new Prisma.Decimal('250'))).toBe(true);
+    expect(meetsFirstDepositBonusThreshold(new Prisma.Decimal('49.99999999'))).toBe(false);
+    expect(meetsFirstDepositBonusThreshold(new Prisma.Decimal('50'))).toBe(true);
+    expect(meetsFirstDepositBonusThreshold(new Prisma.Decimal('250'))).toBe(true);
   });
 
   it('does not credit again when the unique per-user bonus claim already exists', async () => {
     const tx = {
-      depositSession: { findFirst: vi.fn().mockResolvedValue({ id: 'session-1' }) },
+      depositSession: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'session-1' }),
+        aggregate: vi.fn().mockResolvedValue({ _sum: { usdAmount: new Prisma.Decimal(50) } }),
+      },
       deposit: { findFirst: vi.fn().mockResolvedValue(null) },
       firstDepositBonus: { createMany: vi.fn().mockResolvedValue({ count: 0 }) },
     } as unknown as Prisma.TransactionClient;
@@ -58,5 +79,58 @@ describe('first-deposit bonus eligibility threshold', () => {
     })).resolves.toBe(false);
 
     expect(getOrCreate).not.toHaveBeenCalled();
+  });
+
+  it('does not grant the bonus until cumulative deposits reach $50', async () => {
+    const tx = {
+      depositSession: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'session-1' }),
+        aggregate: vi.fn().mockResolvedValue({ _sum: { usdAmount: new Prisma.Decimal('49.99') } }),
+      },
+      deposit: { findFirst: vi.fn().mockResolvedValue(null) },
+      firstDepositBonus: { createMany: vi.fn() },
+    } as unknown as Prisma.TransactionClient;
+
+    await expect(FirstDepositBonusService.grantForCompletedWalletDeposit(tx, {
+      userId: 'user-1',
+      depositSessionId: 'session-1',
+      depositCurrency: 'USDT',
+      depositAmount: new Prisma.Decimal('19.99'),
+      depositUsdValue: new Prisma.Decimal('19.99'),
+      completedAt: new Date(),
+    })).resolves.toBe(false);
+
+    expect(tx.firstDepositBonus.createMany).not.toHaveBeenCalled();
+  });
+
+  it('grants the bonus when the completed deposit brings the cumulative total to $50', async () => {
+    const tx = {
+      depositSession: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'session-1' }),
+        aggregate: vi.fn().mockResolvedValue({ _sum: { usdAmount: new Prisma.Decimal(50) } }),
+      },
+      deposit: { findFirst: vi.fn().mockResolvedValue(null) },
+      firstDepositBonus: { createMany: vi.fn().mockResolvedValue({ count: 1 }) },
+    } as unknown as Prisma.TransactionClient;
+    vi.spyOn(WalletRepository, 'getOrCreate').mockResolvedValue({ id: 'wallet-usdt' } as any);
+    const addToAvailable = vi.spyOn(WalletRepository, 'addToAvailable').mockResolvedValue(undefined);
+    const createLedgerEntry = vi.spyOn(WalletRepository, 'createLedgerEntry').mockResolvedValue({} as any);
+
+    await expect(FirstDepositBonusService.grantForCompletedWalletDeposit(tx, {
+      userId: 'user-1',
+      depositSessionId: 'session-1',
+      depositCurrency: 'USDT',
+      depositAmount: new Prisma.Decimal(20),
+      depositUsdValue: new Prisma.Decimal(20),
+      completedAt: new Date(),
+    })).resolves.toBe(true);
+
+    expect(addToAvailable).toHaveBeenCalledWith(
+      tx,
+      'wallet-usdt',
+      new Prisma.Decimal(10),
+      'USDT',
+    );
+    expect(createLedgerEntry).toHaveBeenCalledOnce();
   });
 });
