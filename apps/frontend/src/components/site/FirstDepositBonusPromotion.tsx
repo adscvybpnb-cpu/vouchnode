@@ -9,7 +9,7 @@ import { useFirstDepositBonusEligibility } from '@/hooks/useFirstDepositBonusEli
 import { useAuthStore } from '@/store/auth.store';
 
 export function FirstDepositBonusPromotion() {
-  const { data, error, hasSession, isLoading } = useFirstDepositBonusEligibility();
+  const { data, error, hasSession, showPromotion } = useFirstDepositBonusEligibility();
   const { hasHydrated, user } = useAuthStore();
   const [dismissedFor, setDismissedFor] = useState<string | null>(null);
   const sessionKey = hasSession ? user?.id ?? 'authenticated' : 'guest';
@@ -21,9 +21,8 @@ export function FirstDepositBonusPromotion() {
   const dismiss = () => {
     setDismissedFor(sessionKey);
   };
-  const isEligible = data?.eligible === true;
   const isOpen = hasHydrated
-    && (hasSession ? !isLoading && isEligible : true)
+    && (!hasSession || showPromotion)
     && dismissedFor !== sessionKey;
 
   return (

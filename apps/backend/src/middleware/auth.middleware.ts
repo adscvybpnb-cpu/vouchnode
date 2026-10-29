@@ -44,15 +44,41 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
   }
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: payload.id },
-      select: { status: true, tokenVersion: true },
-    });
+    const sessionWithUser = payload.sessionId
+      ? await prisma.session.findUnique({
+        where: { id: payload.sessionId },
+        select: {
+          userId: true,
+          isRevoked: true,
+          expiresAt: true,
+          user: { select: { status: true, tokenVersion: true } },
+        },
+      })
+      : null;
+    const user = sessionWithUser
+      ? sessionWithUser.userId === payload.id
+        ? sessionWithUser.user
+        : null
+      : await prisma.user.findUnique({
+        where: { id: payload.id },
+        select: { status: true, tokenVersion: true },
+      });
     if (!user || (user.status !== 'ACTIVE' && user.status !== 'PENDING_VERIFICATION')) {
       return reply.status(401).send({
         statusCode: 401,
         error: 'ACCOUNT_LOCKED',
         message: 'Your account is not available. Please contact support if this continues.',
+      });
+    }
+    if (payload.sessionId && (
+      !sessionWithUser ||
+      sessionWithUser.isRevoked ||
+      sessionWithUser.expiresAt <= new Date()
+    )) {
+      return reply.status(401).send({
+        statusCode: 401,
+        error: 'SESSION_REVOKED',
+        message: 'Your session has been revoked. Please sign in again.',
       });
     }
     if (!Number.isInteger(payload.tokenVersion) || payload.tokenVersion !== user.tokenVersion) {
@@ -61,24 +87,6 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
         error: 'SESSION_REVOKED',
         message: 'Your session has been revoked. Please sign in again.',
       });
-    }
-    if (payload.sessionId) {
-      const session = await prisma.session.findFirst({
-        where: {
-          id: payload.sessionId,
-          userId: payload.id,
-          isRevoked: false,
-          expiresAt: { gt: new Date() },
-        },
-        select: { id: true },
-      });
-      if (!session) {
-        return reply.status(401).send({
-          statusCode: 401,
-          error: 'SESSION_REVOKED',
-          message: 'Your session has been revoked. Please sign in again.',
-        });
-      }
     }
     request.user = payload;
   } catch (error) {

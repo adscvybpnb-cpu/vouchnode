@@ -90,7 +90,7 @@ const nativeDepositNetwork = (currency: string): DepositNetwork => {
 };
 
 export default function WalletPage() {
-  const { data: bonusEligibility, error: bonusEligibilityError } = useFirstDepositBonusEligibility();
+  const { error: bonusEligibilityError, showPromotion } = useFirstDepositBonusEligibility();
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(null);
   const [selected, setSelected] = useState<AssetBalance | null>(null);
@@ -312,7 +312,7 @@ export default function WalletPage() {
             <p className="mt-3 text-sm text-slate-400">Live estimated value across your available, escrowed, and supported assets.</p>
             <div className="mt-6 flex flex-wrap gap-3 text-xs text-slate-300"><span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5"><ShieldCheck className="mr-1 inline h-3.5 w-3.5" />Escrow protected</span><span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5">9 supported assets</span></div>
           </div>
-          {bonusEligibility?.eligible && usdtAsset && (
+          {showPromotion && usdtAsset && (
             <div className="w-full rounded-2xl border border-indigo-300/20 bg-indigo-400/[0.08] p-5 lg:max-w-sm">
               <div className="flex items-start gap-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-400/15 text-indigo-200"><Gift className="h-5 w-5" aria-hidden="true" /></span>

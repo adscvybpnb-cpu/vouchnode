@@ -17,6 +17,26 @@ export const firstDepositBonusEligibilityQueryKey = (userId: string) => [
   userId,
 ] as const;
 
+function getCachedEligibility(userId: string): FirstDepositBonusEligibility | undefined {
+  if (typeof window === 'undefined') return undefined;
+  try {
+    const stored = window.localStorage.getItem(`first-deposit-bonus:${userId}`);
+    if (!stored) return undefined;
+    const parsed: unknown = JSON.parse(stored);
+    if (
+      !parsed ||
+      typeof parsed !== 'object' ||
+      typeof (parsed as FirstDepositBonusEligibility).eligible !== 'boolean' ||
+      typeof (parsed as FirstDepositBonusEligibility).claimed !== 'boolean' ||
+      typeof (parsed as FirstDepositBonusEligibility).totalDepositedUsd !== 'number'
+    ) return undefined;
+    return parsed as FirstDepositBonusEligibility;
+  } catch (error) {
+    console.warn('Unable to read cached first-deposit eligibility:', error);
+    return undefined;
+  }
+}
+
 export function useFirstDepositBonusEligibility() {
   const { accessToken, hasHydrated, isAuthenticated, user } = useAuthStore();
   const hasSession = isAuthenticated && hasUsableAccessToken(accessToken);
@@ -24,6 +44,7 @@ export function useFirstDepositBonusEligibility() {
   const query = useQuery({
     queryKey: firstDepositBonusEligibilityQueryKey(userId ?? ''),
     enabled: hasHydrated && hasSession && Boolean(userId),
+    initialData: () => userId ? getCachedEligibility(userId) : undefined,
     queryFn: async (): Promise<FirstDepositBonusEligibility> => {
       const { data, error } = await apiClient.get<FirstDepositBonusEligibility>(
         '/wallet/first-deposit-bonus/eligibility',
@@ -39,6 +60,15 @@ export function useFirstDepositBonusEligibility() {
   });
 
   useEffect(() => {
+    if (!userId || !query.data || typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(`first-deposit-bonus:${userId}`, JSON.stringify(query.data));
+    } catch (error) {
+      console.warn('Unable to cache first-deposit eligibility:', error);
+    }
+  }, [query.data, userId]);
+
+  useEffect(() => {
     const refreshEligibility = () => {
       if (hasSession && userId) void query.refetch();
     };
@@ -46,5 +76,9 @@ export function useFirstDepositBonusEligibility() {
     return () => window.removeEventListener('wallet:updated', refreshEligibility);
   }, [hasSession, query.refetch, userId]);
 
-  return { ...query, hasSession };
+  return {
+    ...query,
+    hasSession,
+    showPromotion: hasSession && (query.data?.eligible ?? true),
+  };
 }
