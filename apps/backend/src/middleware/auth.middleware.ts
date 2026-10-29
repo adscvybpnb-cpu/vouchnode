@@ -48,11 +48,11 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
       where: { id: payload.id },
       select: { status: true, tokenVersion: true },
     });
-    if (!user || (user.status !== 'ACTIVE' && user.status !== 'PENDING_VERIFICATION')) {
+    if (!user || user.status !== 'ACTIVE') {
       return reply.status(401).send({
         statusCode: 401,
         error: 'ACCOUNT_LOCKED',
-        message: 'Your account is no longer active. Please sign in again.',
+        message: 'Your account is not active. Please sign in again.',
       });
     }
     if (!Number.isInteger(payload.tokenVersion) || payload.tokenVersion !== user.tokenVersion) {
@@ -61,6 +61,24 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
         error: 'SESSION_REVOKED',
         message: 'Your session has been revoked. Please sign in again.',
       });
+    }
+    if (payload.sessionId) {
+      const session = await prisma.session.findFirst({
+        where: {
+          id: payload.sessionId,
+          userId: payload.id,
+          isRevoked: false,
+          expiresAt: { gt: new Date() },
+        },
+        select: { id: true },
+      });
+      if (!session) {
+        return reply.status(401).send({
+          statusCode: 401,
+          error: 'SESSION_REVOKED',
+          message: 'Your session has been revoked. Please sign in again.',
+        });
+      }
     }
     request.user = payload;
   } catch (error) {

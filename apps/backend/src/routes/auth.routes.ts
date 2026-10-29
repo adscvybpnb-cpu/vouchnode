@@ -7,7 +7,18 @@ import jwt from 'jsonwebtoken';
 import crypto from 'node:crypto';
 import { config } from '../config';
 
+function isDatabaseUnavailable(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const databaseError = error as { code?: unknown; message?: unknown };
+  const code = String(databaseError.code || '');
+  const message = String(databaseError.message || '');
+  return ['P1001', 'P1002', 'P2024', 'P2028', 'ECONNREFUSED', 'ETIMEDOUT'].includes(code)
+    || message.includes('Authentication failed against database server');
+}
+
 export default async function authRoutes(app: FastifyInstance) {
+  const refreshCookieMaxAge = Math.ceil(AuthService.parseDurationToMs(config.jwt.refreshExpiresIn) / 1000);
+
   app.post('/admin-login', {
     config: {
       rateLimit: {
@@ -52,9 +63,20 @@ export default async function authRoutes(app: FastifyInstance) {
         return reply.status(400).send({ statusCode: 400, error: 'Validation Error', message });
       }
       const user = await AuthService.register(parsed.data);
-      await createAuditLog({ actorId: user.id, actorType: 'USER', action: 'auth.register', ipAddress: request.ip });
+      try {
+        await createAuditLog({ actorId: user.id, actorType: 'USER', action: 'auth.register', ipAddress: request.ip });
+      } catch (error) {
+        request.log.error({ error, userId: user.id }, 'Registration succeeded but audit logging failed');
+      }
       return reply.status(201).send({ message: 'Registration successful. Please check your email to verify your account.', user });
     } catch (err: any) {
+      if (isDatabaseUnavailable(err)) {
+        return reply.status(503).send({
+          statusCode: 503,
+          error: 'Service Unavailable',
+          message: 'Registration is temporarily unavailable. Please try again.',
+        });
+      }
       // Prisma unique constraint violation (duplicate email or username)
       if (err.code === 'P2002') {
         const field = err.meta?.target?.includes('email') ? 'email' : 'username';
@@ -93,17 +115,20 @@ export default async function authRoutes(app: FastifyInstance) {
       const result = await AuthService.login(email, password, request.ip, request.headers['user-agent'] || '');
       reply.setCookie('refreshToken', result.refreshToken, {
         httpOnly: true, path: '/', secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax', maxAge: 30 * 24 * 60 * 60
+        sameSite: 'lax', maxAge: refreshCookieMaxAge
       });
-      await createAuditLog({ actorId: result.user.id, actorType: 'USER', action: 'auth.login', ipAddress: request.ip });
+      try {
+        await createAuditLog({ actorId: result.user.id, actorType: 'USER', action: 'auth.login', ipAddress: request.ip });
+      } catch (error) {
+        request.log.error({ error, userId: result.user.id }, 'Login succeeded but audit logging failed');
+      }
       return reply.send({ message: 'Login successful', accessToken: result.accessToken, user: result.user });
     } catch (err: any) {
-      const prismaUnavailable = err?.code === 'P1001' || err?.code === 'P1002' || err?.code === 'ECONNREFUSED' || String(err?.message || '').includes('Authentication failed against database server');
-      if (prismaUnavailable) {
+      if (isDatabaseUnavailable(err)) {
         return reply.status(503).send({
           statusCode: 503,
           error: 'Service Unavailable',
-          message: 'Database is unavailable. Please ensure PostgreSQL is running locally or in Docker.'
+          message: 'Authentication is temporarily unavailable. Please try again.'
         });
       }
 
@@ -123,10 +148,17 @@ export default async function authRoutes(app: FastifyInstance) {
       const result = await AuthService.refreshToken(token);
       reply.setCookie('refreshToken', result.refreshToken, {
         httpOnly: true, path: '/', secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax', maxAge: 30 * 24 * 60 * 60
+        sameSite: 'lax', maxAge: refreshCookieMaxAge
       });
       return reply.send({ accessToken: result.accessToken });
     } catch (err: any) {
+      if (isDatabaseUnavailable(err)) {
+        return reply.status(503).send({
+          statusCode: 503,
+          error: 'Service Unavailable',
+          message: 'Session refresh is temporarily unavailable. Please try again.',
+        });
+      }
       reply.clearCookie('refreshToken', { path: '/' });
       return reply.status(401).send({ statusCode: 401, error: 'Unauthorized', message: err.message });
     }
@@ -139,9 +171,10 @@ export default async function authRoutes(app: FastifyInstance) {
       if (sessionId) await AuthService.logout(sessionId);
       reply.clearCookie('refreshToken', { path: '/' });
       return reply.send({ message: 'Logged out successfully' });
-    } catch {
+    } catch (error) {
       reply.clearCookie('refreshToken', { path: '/' });
-      return reply.send({ message: 'Logged out' });
+      request.log.error({ error }, 'Unable to revoke login session');
+      return reply.status(500).send({ statusCode: 500, error: 'Logout Failed', message: 'Unable to revoke the current session.' });
     }
   });
 

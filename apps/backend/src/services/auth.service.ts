@@ -3,7 +3,6 @@ import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import { addMinutes, isAfter } from 'date-fns';
-import { CurrencyType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { config } from '../config';
 import { UserRole } from '@vouchnode/shared';
@@ -13,74 +12,38 @@ import { INTERNAL_SUPPORTED_ASSET_CODES } from '../lib/internal-wallet';
 import { NotificationService } from './notification.service';
 import { logger } from '../lib/logger';
 import { WELCOME_EMAIL_SUBJECT } from '../integrations/email/email.templates';
-
-const CURRENCY_METADATA: Record<string, { name: string; symbol: string; decimals: number }> = {
-  USD: { name: 'US Dollar', symbol: 'USD', decimals: 2 },
-  BTC: { name: 'Bitcoin', symbol: 'BTC', decimals: 8 },
-  USDT: { name: 'Tether', symbol: 'USDT', decimals: 6 },
-  ETH: { name: 'Ethereum', symbol: 'ETH', decimals: 18 },
-  BNB: { name: 'BNB', symbol: 'BNB', decimals: 18 },
-  SOL: { name: 'Solana', symbol: 'SOL', decimals: 9 },
-  LTC: { name: 'Litecoin', symbol: 'LTC', decimals: 8 },
-  TRX: { name: 'TRON', symbol: 'TRX', decimals: 6 },
-  USDC: { name: 'USD Coin', symbol: 'USDC', decimals: 6 },
-  BCH: { name: 'Bitcoin Cash', symbol: 'BCH', decimals: 8 },
-  GRAM: { name: 'Gram', symbol: 'GRAM', decimals: 9 }
-};
+import { COUNTRY_CATALOG } from '../catalogs/countries';
+import { CURRENCY_CATALOG } from '../catalogs/currencies';
+import { ROLE_CATALOG } from '../catalogs/roles';
 
 async function ensureAuthReferenceData(countryCode: string) {
-  const countryNames: Record<string, string> = {
-    US: 'United States',
-    GB: 'United Kingdom',
-    CA: 'Canada',
-    AU: 'Australia',
-    DE: 'Germany',
-    FR: 'France',
-    IN: 'India',
-    AE: 'United Arab Emirates'
-  };
+  const country = COUNTRY_CATALOG.find((entry) => entry.code === countryCode);
+  if (!country) {
+    throw Object.assign(new Error('Unsupported country code.'), { statusCode: 400 });
+  }
 
-  await prisma.$transaction(async (tx) => {
-    await Promise.all(
-      [UserRole.BUYER, UserRole.SELLER, UserRole.ADMIN].map((name) =>
-        tx.role.upsert({
-          where: { name },
-          update: {},
-          create: { name, description: `${name} platform role` }
-        })
-      )
-    );
+  const currencyCodes = new Set(CURRENCY_CATALOG.map(({ code }) => code));
+  const missingCurrencyMetadata = ['USD', ...INTERNAL_SUPPORTED_ASSET_CODES]
+    .filter((code) => !currencyCodes.has(code));
+  if (missingCurrencyMetadata.length > 0) {
+    throw new Error(`Missing currency metadata for ${missingCurrencyMetadata.join(', ')}.`);
+  }
 
-    await tx.country.upsert({
-      where: { code: countryCode },
-      update: {},
-      create: {
-        code: countryCode,
-        name: countryNames[countryCode] || countryCode,
-        dialCode: '+0',
-        isSupported: true
-      }
-    });
-
-    await Promise.all(
-      ['USD', ...INTERNAL_SUPPORTED_ASSET_CODES].map((code) => {
-        const metadata = CURRENCY_METADATA[code];
-        if (!metadata) throw new Error(`Missing currency metadata for ${code}.`);
-        return tx.currency.upsert({
-          where: { code },
-          update: {},
-          create: {
-            code,
-            name: metadata.name,
-            symbol: metadata.symbol,
-            type: code === 'USD' ? CurrencyType.FIAT : CurrencyType.CRYPTO,
-            decimals: metadata.decimals,
-            isActive: true
-          }
-        });
-      })
-    );
-  });
+  await Promise.all([
+    prisma.role.createMany({
+      data: ROLE_CATALOG.map((name) => ({ name, description: `${name} platform role` })),
+      skipDuplicates: true,
+    }),
+    prisma.country.createMany({
+      data: [country],
+      skipDuplicates: true,
+    }),
+    prisma.currency.createMany({
+      data: CURRENCY_CATALOG.map((currency) => ({ ...currency, isActive: true })),
+      skipDuplicates: true,
+    }),
+  ]);
+  return prisma.role.findUniqueOrThrow({ where: { name: UserRole.BUYER } });
 }
 
 export class AuthService {
@@ -172,42 +135,60 @@ export class AuthService {
       referredById = referrer.id;
     }
 
-    await ensureAuthReferenceData(country);
-
+    const buyerRole = await ensureAuthReferenceData(country);
     const passwordHash = await argon2.hash(data.password);
     const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationTokenHash = crypto.createHash('sha256').update(verificationToken).digest('hex');
 
-    const buyerRole = await prisma.role.findUniqueOrThrow({ where: { name: UserRole.BUYER } });
-
-    const user = await prisma.user.create({
-      data: {
-        email,
-        referralCode: crypto.randomBytes(8).toString('hex'),
-        ...(referredById ? { referredById } : {}),
-        passwordHash,
-        status: 'PENDING_VERIFICATION',
-        emailVerificationToken: verificationToken,
-        emailVerificationExpiry: addMinutes(new Date(), 60 * 24),
-        profile: {
-          create: {
-            username,
-            displayName: `${String(data.firstName).trim()} ${String(data.lastName).trim()}`,
-            countryCode: country
+    const user = await prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
+        data: {
+          email,
+          referralCode: crypto.randomBytes(8).toString('hex'),
+          ...(referredById ? { referredById } : {}),
+          passwordHash,
+          status: 'PENDING_VERIFICATION',
+          emailVerificationToken: verificationTokenHash,
+          emailVerificationExpiry: addMinutes(new Date(), 60 * 24),
+          profile: {
+            create: {
+              username,
+              displayName: `${String(data.firstName).trim()} ${String(data.lastName).trim()}`,
+              countryCode: country
+            }
+          },
+          roles: {
+            create: {
+              roleId: buyerRole.id
+            }
           }
         },
-        roles: {
-          create: {
-            roleId: buyerRole.id
-          }
+        include: {
+          profile: true,
+          roles: { include: { role: true } }
         }
-      },
-      include: {
-        profile: true,
-        roles: { include: { role: true } }
-      }
+      });
+
+      await WalletRepository.initializeUserWallets(createdUser.id, tx);
+      return createdUser;
     });
 
-    await WalletRepository.initializeUserWallets(user.id);
+    try {
+      await NotificationService.createNotification({
+        userId: user.id,
+        type: 'SYSTEM',
+        title: 'Verify your email address',
+        message: 'Confirm your email address to activate your VouchNodes account. This link expires in 24 hours.',
+        data: { emailTemplate: 'email-verification' },
+        link: `/auth/verify-email?token=${encodeURIComponent(verificationToken)}`,
+        sendEmail: true,
+      });
+    } catch (error) {
+      logger.error({
+        userId: user.id,
+        error: error instanceof Error ? error.message : String(error),
+      }, 'Unable to queue new-user email verification');
+    }
 
     try {
       await NotificationService.createNotification({
@@ -244,7 +225,10 @@ export class AuthService {
     }
 
     // Check account status before expensive password verification
-    if (user.status !== 'ACTIVE' && user.status !== 'PENDING_VERIFICATION') {
+    if (user.status === 'PENDING_VERIFICATION') {
+      throw Object.assign(new Error('Please verify your email address before signing in.'), { statusCode: 403 });
+    }
+    if (user.status !== 'ACTIVE') {
       throw new Error(`Account is ${user.status.toLowerCase().replace(/_/g, ' ')}`);
     }
 
@@ -261,7 +245,6 @@ export class AuthService {
 
     await this.resetFailedLogin(user.id);
 
-    const accessToken = this.generateAccessToken(user);
     const refreshToken = uuidv4();
 
     // Parse refresh token expiry correctly — config value is e.g. "30d", "7d", "1440m"
@@ -269,21 +252,24 @@ export class AuthService {
     const refreshExpiresInMs = this.parseDurationToMs(config.jwt.refreshExpiresIn);
     const expiresAt = new Date(Date.now() + refreshExpiresInMs);
 
-    await prisma.session.create({
-      data: {
-        userId:    user.id,
-        refreshToken,
-        ipAddress,
-        userAgent,
-        expiresAt,
-      }
+    const session = await prisma.$transaction(async (tx) => {
+      const createdSession = await tx.session.create({
+        data: {
+          userId: user.id,
+          refreshToken,
+          ipAddress,
+          userAgent,
+          expiresAt,
+        }
+      });
+      await tx.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date(), lastLoginIp: ipAddress, isOnline: true }
+      });
+      return createdSession;
     });
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date(), lastLoginIp: ipAddress, isOnline: true }
-    });
-
+    const accessToken = this.generateAccessToken(user, session.id);
     return { accessToken, refreshToken, user: this.toClientUser(user) };
   }
 
@@ -301,7 +287,7 @@ export class AuthService {
     }
   }
 
-  static generateAccessToken(user: any) {
+  static generateAccessToken(user: any, sessionId?: string) {
     const minimumAccessLifetimeMs = 24 * 60 * 60 * 1000;
     const configuredAccessLifetimeMs = this.parseDurationToMs(config.jwt.accessExpiresIn);
     const accessLifetimeSeconds = Math.ceil(Math.max(configuredAccessLifetimeMs, minimumAccessLifetimeMs) / 1000);
@@ -310,7 +296,8 @@ export class AuthService {
         id: user.id,
         email: user.email,
         tokenVersion: user.tokenVersion,
-        roles: user.roles?.map((ur: any) => ur.role.name) || []
+        roles: user.roles?.map((ur: any) => ur.role.name) || [],
+        ...(sessionId ? { sessionId } : {})
       },
       config.jwt.accessSecret,
       { expiresIn: accessLifetimeSeconds }
@@ -354,18 +341,26 @@ export class AuthService {
     if (!session || session.isRevoked || isAfter(new Date(), session.expiresAt)) {
       throw Object.assign(new Error('Invalid or expired refresh token'), { statusCode: 401 });
     }
-    if (session.user.status !== 'ACTIVE' && session.user.status !== 'PENDING_VERIFICATION') {
+    if (session.user.status !== 'ACTIVE') {
       throw Object.assign(new Error('Account is no longer active'), { statusCode: 401 });
     }
 
-    // Rotate refresh token
+    const now = new Date();
     const newRefreshToken = uuidv4();
-    await prisma.session.update({
-      where: { id: session.id },
-      data: { refreshToken: newRefreshToken, lastUsedAt: new Date() }
+    const rotation = await prisma.session.updateMany({
+      where: {
+        id: session.id,
+        refreshToken: token,
+        isRevoked: false,
+        expiresAt: { gt: now },
+      },
+      data: { refreshToken: newRefreshToken, lastUsedAt: now }
     });
+    if (rotation.count !== 1) {
+      throw Object.assign(new Error('Invalid or expired refresh token'), { statusCode: 401 });
+    }
 
-    const accessToken = this.generateAccessToken(session.user);
+    const accessToken = this.generateAccessToken(session.user, session.id);
     return { accessToken, refreshToken: newRefreshToken };
   }
 
@@ -453,9 +448,10 @@ export class AuthService {
   }
 
   static async verifyEmail(token: string) {
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const user = await prisma.user.findFirst({
       where: {
-        emailVerificationToken: token,
+        emailVerificationToken: tokenHash,
         emailVerificationExpiry: { gt: new Date() }
       }
     });
@@ -468,6 +464,7 @@ export class AuthService {
       where: { id: user.id },
       data: {
         emailVerified: true,
+        status: 'ACTIVE',
         emailVerificationToken: null,
         emailVerificationExpiry: null
       }

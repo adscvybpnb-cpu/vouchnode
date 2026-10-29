@@ -1,6 +1,6 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { assetToUsd, INTERNAL_PRIMARY_ASSET_CODES, INTERNAL_SUPPORTED_ASSET_CODES, normalizeAssetCode } from '../lib/internal-wallet';
+import { assetToUsd, INTERNAL_SUPPORTED_ASSET_CODES, normalizeAssetCode } from '../lib/internal-wallet';
 
 export class WalletRepository {
   static async getOrCreate(userId: string, currency: string, client: PrismaClient | Prisma.TransactionClient = prisma) {
@@ -13,9 +13,24 @@ export class WalletRepository {
     return client.wallet.findUniqueOrThrow({ where });
   }
 
-  static async initializeUserWallets(userId: string) {
-    const assetCodes = [...INTERNAL_SUPPORTED_ASSET_CODES];
-    const wallets = await Promise.all(assetCodes.map((currency) => this.getOrCreate(userId, currency)));
+  static async initializeUserWallets(userId: string, client: PrismaClient | Prisma.TransactionClient = prisma) {
+    const currencies = [...new Set(INTERNAL_SUPPORTED_ASSET_CODES)];
+    await client.wallet.createMany({
+      data: currencies.map((currency) => ({
+        userId,
+        currency,
+        walletType: 'INTERNAL',
+        isPrimary: currency === 'USD',
+      })),
+      skipDuplicates: true,
+    });
+    const wallets = await client.wallet.findMany({
+      where: { userId, currency: { in: currencies } },
+      orderBy: { currency: 'asc' },
+    });
+    if (wallets.length !== currencies.length) {
+      throw new Error(`Wallet initialization incomplete for user ${userId}.`);
+    }
     return wallets;
   }
 
