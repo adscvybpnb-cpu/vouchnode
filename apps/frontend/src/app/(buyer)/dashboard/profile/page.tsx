@@ -828,12 +828,22 @@ export default function ProfilePage() {
                 image={cropSourceUrl}
                 crop={crop}
                 zoom={zoom}
+                rotation={0}
                 aspect={1}
+                minZoom={1}
+                maxZoom={3}
                 cropShape="round"
                 showGrid
+                zoomSpeed={1}
                 onCropChange={setCrop}
                 onZoomChange={setZoom}
                 onCropComplete={(_, pixels) => setCroppedAreaPixels(pixels)}
+                style={{}}
+                classes={{}}
+                restrictPosition
+                mediaProps={{}}
+                cropperProps={{}}
+                keyboardStep={1}
               />
             </div>
             <label className="mt-5 block text-sm text-slate-300">
