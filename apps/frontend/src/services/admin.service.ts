@@ -7,6 +7,17 @@ export interface AdminUserRow extends Omit<User, 'role'> {
   roles: string[];
 }
 
+export interface AdminDashboardStats {
+  totalUsers: number;
+  totalProducts: number;
+  totalOrders: number;
+  totalSellers: number;
+  pendingKyc: number;
+  openDisputes: number;
+  pendingDeposits: number;
+  pendingWithdrawals: number;
+}
+
 export interface AdminUserDetails {
   id: string;
   email: string;
@@ -304,8 +315,8 @@ export const adminService = {
     formData.append('logo', file);
     return unwrap(adminApiClient.upload<{ logoUrl: string }>('/settings/logo', formData));
   },
-  async getDashboardStats() {
-    return unwrap(adminApiClient.get<any>('/analytics/dashboard'));
+  async getDashboardStats(): Promise<AdminDashboardStats> {
+    return unwrap(adminApiClient.get<AdminDashboardStats>('/analytics/dashboard'));
   },
   async getReferralSummary() {
     return unwrap(adminApiClient.get<AdminReferralSummary>('/referrals/summary'));

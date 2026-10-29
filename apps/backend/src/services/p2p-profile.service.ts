@@ -5,7 +5,71 @@ import {
   quoteP2PTrade,
 } from './p2p-pricing.service';
 
+type P2PTradeMetrics = {
+  thirtyDayOrders: number;
+  totalCompletedOrders: number;
+  completedBuyOrders: number;
+  completedSellOrders: number;
+  completionRate: number;
+};
+
 export class P2PProfileService {
+  static async getTradeMetricsForUsers(userIds: string[]): Promise<Map<string, P2PTradeMetrics>> {
+    const uniqueUserIds = [...new Set(userIds)];
+    if (uniqueUserIds.length === 0) return new Map<string, P2PTradeMetrics>();
+
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const completedStatuses = ['COMPLETED'] as const;
+    const [
+      thirtyDayOrders,
+      thirtyDayCompletedOrders,
+      totalCompletedOrders,
+      completedBuyOrders,
+    ] = await Promise.all([
+      prisma.p2POrder.groupBy({
+        by: ['sellerId'],
+        where: { sellerId: { in: uniqueUserIds }, createdAt: { gte: thirtyDaysAgo } },
+        _count: { _all: true },
+      }),
+      prisma.p2POrder.groupBy({
+        by: ['sellerId'],
+        where: {
+          sellerId: { in: uniqueUserIds },
+          createdAt: { gte: thirtyDaysAgo },
+          status: { in: [...completedStatuses] },
+        },
+        _count: { _all: true },
+      }),
+      prisma.p2POrder.groupBy({
+        by: ['sellerId'],
+        where: { sellerId: { in: uniqueUserIds }, status: { in: [...completedStatuses] } },
+        _count: { _all: true },
+      }),
+      prisma.p2POrder.groupBy({
+        by: ['buyerId'],
+        where: { buyerId: { in: uniqueUserIds }, status: { in: [...completedStatuses] } },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const recentCountsByUserId = new Map(thirtyDayOrders.map((row) => [row.sellerId, row._count._all]));
+    const recentCompletedByUserId = new Map(thirtyDayCompletedOrders.map((row) => [row.sellerId, row._count._all]));
+    const totalCompletedByUserId = new Map(totalCompletedOrders.map((row) => [row.sellerId, row._count._all]));
+    const completedBuyByUserId = new Map(completedBuyOrders.map((row) => [row.buyerId, row._count._all]));
+
+    return new Map<string, P2PTradeMetrics>(uniqueUserIds.map((userId): [string, P2PTradeMetrics] => {
+      const recentOrderCount = recentCountsByUserId.get(userId) ?? 0;
+      const recentCompletedCount = recentCompletedByUserId.get(userId) ?? 0;
+      return [userId, {
+        thirtyDayOrders: recentOrderCount,
+        totalCompletedOrders: totalCompletedByUserId.get(userId) ?? 0,
+        completedBuyOrders: completedBuyByUserId.get(userId) ?? 0,
+        completedSellOrders: totalCompletedByUserId.get(userId) ?? 0,
+        completionRate: recentOrderCount ? (recentCompletedCount / recentOrderCount) * 100 : 0,
+      }];
+    }));
+  }
+
   static async getTradeMetrics(userId: string) {
     const completedStatuses = ['COMPLETED'] as const;
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);

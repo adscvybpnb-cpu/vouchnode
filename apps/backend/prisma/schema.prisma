@@ -515,6 +515,7 @@ model P2POffer {
 
   @@index([userId])
   @@index([type, cryptoAsset, giftCardType])
+  @@index([type, isActive, cryptoAsset, updatedAt])
   @@index([createdAt])
 }
 
@@ -563,6 +564,7 @@ model P2POrder {
   @@index([offerId])
   @@index([buyerId, status])
   @@index([sellerId, status])
+  @@index([sellerId, createdAt])
   @@index([status, paymentDeadline])
   @@index([status, paidVerificationDeadline])
 }

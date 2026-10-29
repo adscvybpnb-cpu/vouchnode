@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight, Check, ChevronDown, Clock3, ClipboardList, Copy, Heart, LayoutGrid, Megaphone, MessageCircle, RefreshCw, Search, ShieldCheck, Trash2, UserRound, Zap, X } from 'lucide-react';
@@ -334,9 +335,6 @@ function AdsView({ profile, loading, error, onPublished, editOffer }: { profile:
 
 export default function P2POffersPage() {
   const router = useRouter();
-  const [offers, setOffers] = useState<P2POffer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [marketSide, setMarketSide] = useState<'buy' | 'sell'>('buy');
   const [selectedAsset, setSelectedAsset] = useState('USDT');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
@@ -352,41 +350,51 @@ export default function P2POffersPage() {
   const { isAuthenticated, user } = useAuth();
   const [editOffer, setEditOffer] = useState<P2POffer | null>(null);
   const { socket: presenceSocket } = useSocket('/presence');
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const type = marketSide === 'buy' ? 'BUY' : 'SELL';
+  const queryClient = useQueryClient();
+  const offerType = marketSide === 'buy' ? 'BUY' : 'SELL';
+  const offersQueryKey = useMemo(
+    () => ['p2p', 'offers', offerType, selectedAsset, selectedPaymentMethod] as const,
+    [offerType, selectedAsset, selectedPaymentMethod],
+  );
+  const {
+    data: offers = [],
+    isLoading: loading,
+    error: offersQueryError,
+    refetch: refreshOffers,
+  } = useQuery({
+    queryKey: offersQueryKey,
+    queryFn: async () => {
       const matchingOffers = await p2pService.getOffers({
-        type,
+        type: offerType,
         asset: selectedAsset,
-        paymentMethod: selectedPaymentMethod || undefined
+        paymentMethod: selectedPaymentMethod || undefined,
       });
-      setOffers(matchingOffers.filter((offer) => offer.tradeType === type));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load P2P offers.');
-    } finally {
-      setLoading(false);
-    }
-  }, [marketSide, selectedAsset, selectedPaymentMethod]);
+      return matchingOffers.filter((offer) => offer.tradeType === offerType);
+    },
+    staleTime: 15_000,
+    placeholderData: (previousOffers) => previousOffers,
+  });
+  const error = offersQueryError instanceof Error
+    ? offersQueryError.message
+    : offersQueryError
+      ? 'Unable to load P2P offers.'
+      : '';
 
-  useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     if (!presenceSocket) return;
     const handleP2POfferUpdate = (payload: { cryptoAsset?: string }) => {
-      if (!payload.cryptoAsset || payload.cryptoAsset === selectedAsset) void load();
+      if (!payload.cryptoAsset || payload.cryptoAsset === selectedAsset) void refreshOffers();
     };
     presenceSocket.on('p2p:offers-updated', handleP2POfferUpdate);
     return () => {
       presenceSocket.off('p2p:offers-updated', handleP2POfferUpdate);
     };
-  }, [load, presenceSocket, selectedAsset]);
+  }, [presenceSocket, refreshOffers, selectedAsset]);
   useEffect(() => {
     const handlePresenceUpdate = (event: Event) => {
       const payload = (event as CustomEvent<{ userId?: string; isOnline?: boolean }>).detail;
       if (!payload?.userId || typeof payload.isOnline !== 'boolean') return;
-      setOffers((current) => current.map((offer) => offer.userId === payload.userId
+      queryClient.setQueriesData<P2POffer[]>({ queryKey: ['p2p', 'offers'] }, (current) => current?.map((offer) => offer.userId === payload.userId
         ? { ...offer, isOnline: payload.isOnline!, isActiveWithinFiveMinutes: payload.isOnline! || offer.isActiveWithinFiveMinutes }
         : offer));
       setProfile((current) => current && payload.userId === user?.id
@@ -395,7 +403,7 @@ export default function P2POffersPage() {
     };
     window.addEventListener('presence:update', handlePresenceUpdate);
     return () => window.removeEventListener('presence:update', handlePresenceUpdate);
-  }, [user?.id]);
+  }, [queryClient, user?.id]);
   useEffect(() => {
     if (!presenceSocket) return;
     const handleProfileUpdate = (payload: {
@@ -403,7 +411,7 @@ export default function P2POffersPage() {
       profile: { username: string; displayName: string; avatarUrl: string | null };
     }) => {
       if (!payload?.userId || !payload.profile) return;
-      setOffers((current) => current.map((offer) => offer.userId === payload.userId
+      queryClient.setQueriesData<P2POffer[]>({ queryKey: ['p2p', 'offers'] }, (current) => current?.map((offer) => offer.userId === payload.userId
         ? {
             ...offer,
             username: payload.profile.username,
@@ -424,7 +432,7 @@ export default function P2POffersPage() {
     return () => {
       presenceSocket.off('user:profile-updated', handleProfileUpdate);
     };
-  }, [presenceSocket]);
+  }, [presenceSocket, queryClient]);
   useEffect(() => {
     if (activeNavigation === 'Profile' || activeNavigation === 'Ads') {
       setProfileLoading(true); setProfileError('');
@@ -488,7 +496,7 @@ export default function P2POffersPage() {
           <button type="button" onClick={() => setPaymentDrawerOpen(true)} className="mt-4 flex min-w-[220px] flex-1 items-center justify-between rounded-xl border border-white/10 bg-[#0b0d14] px-3 py-3 text-left text-sm text-slate-300">
             {selectedPaymentMethod || (marketSide === 'buy' ? 'Select Payment Method' : 'Select Gift Card You Want')}<ChevronDown className="h-4 w-4 text-slate-500" />
           </button>
-          <Button variant="outline" onClick={() => void load()} className="mt-4 border-white/10 text-slate-300"><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button>
+          <Button variant="outline" onClick={() => void refreshOffers()} className="mt-4 border-white/10 text-slate-300"><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button>
         </div>
         <div className="mb-6 inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-sm font-semibold text-emerald-300">
           {marketSide === 'buy' ? 'Buy' : 'Sell'} {selectedAsset} with 0 fees

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { memo, useState } from 'react';
 
 interface P2PMerchantAvatarProps {
   name: string;
@@ -9,7 +9,7 @@ interface P2PMerchantAvatarProps {
   imageClassName?: string;
 }
 
-export function P2PMerchantAvatar({
+export const P2PMerchantAvatar = memo(function P2PMerchantAvatar({
   name,
   avatarUrl,
   className,
@@ -33,4 +33,4 @@ export function P2PMerchantAvatar({
       )}
     </div>
   );
-}
+});

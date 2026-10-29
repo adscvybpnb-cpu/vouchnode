@@ -28,7 +28,6 @@ function ProductsContent() {
   const { data, isLoading } = useQuery({
     queryKey: ['products', filters],
     queryFn: () => productService.getProducts(filters),
-    refetchOnWindowFocus: true,
     placeholderData: (previousData) => previousData,
   });
 

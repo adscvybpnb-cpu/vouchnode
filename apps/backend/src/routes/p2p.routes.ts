@@ -107,7 +107,17 @@ export default async function p2pRoutes(app: FastifyInstance) {
     try {
       const offer = await prisma.p2POffer.findUnique({
         where: { id: req.params.id },
-        include: {
+        select: {
+          id: true,
+          type: true,
+          giftCardType: true,
+          cryptoAsset: true,
+          minLimit: true,
+          maxLimit: true,
+          exchangeRate: true,
+          terms: true,
+          isActive: true,
+          updatedAt: true,
           user: {
             select: {
               id: true,
@@ -255,7 +265,16 @@ export default async function p2pRoutes(app: FastifyInstance) {
           ...(paymentMethod ? { giftCardType: paymentMethod } : {})
         },
         orderBy: [{ updatedAt: 'desc' }],
-        include: {
+        select: {
+          id: true,
+          type: true,
+          giftCardType: true,
+          cryptoAsset: true,
+          minLimit: true,
+          maxLimit: true,
+          exchangeRate: true,
+          terms: true,
+          updatedAt: true,
           user: {
             select: {
               id: true,
@@ -277,18 +296,9 @@ export default async function p2pRoutes(app: FastifyInstance) {
         }
       });
 
-      const metricsByUserId = new Map(
-        await Promise.all(
-          [...new Set(offers.map((offer) => offer.user.id))].map(async (userId) => [
-            userId,
-            await P2PProfileService.getTradeMetrics(userId),
-          ] as const),
-        ),
+      const metricsByUserId = await P2PProfileService.getTradeMetricsForUsers(
+        offers.map((offer) => offer.user.id),
       );
-      req.log.info({
-        merchantIds: [...metricsByUserId.keys()],
-        metrics: Object.fromEntries(metricsByUserId),
-      }, 'P2P offers metrics loaded from seller-scoped p2POrder records');
 
       const pricesByAsset = new Map(
         await Promise.all(

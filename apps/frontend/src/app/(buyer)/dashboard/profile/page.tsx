@@ -1,8 +1,9 @@
 'use client';
 
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { Camera, ExternalLink, Globe, Lock, Mail, MapPin, MessageCircle, Save, ShieldCheck, Twitter, Github, Linkedin, User as UserIcon } from 'lucide-react';
-import Cropper, { Area } from 'react-easy-crop';
+import type { Area } from 'react-easy-crop';
 import 'react-easy-crop/react-easy-crop.css';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +13,11 @@ import { useAuthStore } from '@/store/auth.store';
 import type { User } from '@/store/auth.store';
 import { telegramService } from '@/services/telegram.service';
 import { API_ORIGIN } from '@/lib/constants';
+
+const Cropper = dynamic(() => import('react-easy-crop'), {
+  ssr: false,
+  loading: () => <div className="h-full w-full animate-pulse bg-white/5" aria-label="Loading image editor" />,
+});
 
 interface ProfileForm {
   displayName: string;
