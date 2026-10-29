@@ -5,6 +5,7 @@ export interface User {
   id: string;
   email: string;
   username: string;
+  usernameChangedAt?: string | null;
   role: 'BUYER' | 'SELLER' | 'ADMIN';
   kycStatus?: 'NOT_SUBMITTED' | 'PENDING_ADMIN_REVIEW' | 'PENDING_MANUAL_REVIEW' | 'REJECTED' | 'APPROVED' | 'AUTOMATED_VERIFIED';
   sellerStatus?: 'none' | 'pending' | 'approved' | 'suspended' | 'rejected';

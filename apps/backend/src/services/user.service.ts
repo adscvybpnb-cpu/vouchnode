@@ -17,6 +17,7 @@ export class UserService {
           select: {
             displayName: true,
             username: true,
+            usernameChangedAt: true,
             avatarUrl: true,
             bio: true,
             countryCode: true,
@@ -33,6 +34,7 @@ export class UserService {
       }
     });
     if (!user) throw Object.assign(new Error('User not found'), { statusCode: 404 });
+    const role = user.roles.find((userRole) => userRole.role?.name)?.role.name || 'BUYER';
     const sellerStatus = user.sellerProfile?.status === 'ACTIVE'
       ? 'approved'
       : user.sellerProfile?.status === 'PENDING'
@@ -45,7 +47,10 @@ export class UserService {
 
     return {
       ...user,
+      role,
+      isVerified: user.emailVerified,
       username: user.profile?.username || '',
+      usernameChangedAt: user.profile?.usernameChangedAt?.toISOString() || null,
       avatarUrl: user.profile?.avatarUrl || null,
       displayName: user.profile?.displayName || null,
       bio: user.profile?.bio || null,

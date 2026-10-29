@@ -43,6 +43,21 @@ const profileUpdateSchema = z.object({
 export default async function walletRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authenticate);
 
+  app.get('/me', async (req: any, res) => {
+    try {
+      return res.send({ data: await UserService.getMe(req.user.id) });
+    } catch (error) {
+      const statusCode = error && typeof error === 'object' && 'statusCode' in error &&
+        typeof error.statusCode === 'number'
+        ? error.statusCode
+        : 500;
+      req.log.error({ error, userId: req.user.id }, 'Unable to load current user profile');
+      return res.status(statusCode).send({
+        message: error instanceof Error ? error.message : 'Unable to load current user profile.',
+      });
+    }
+  });
+
   app.patch('/profile', async (req: any, res) => {
     const parsed = profileUpdateSchema.safeParse(req.body);
     if (!parsed.success) {

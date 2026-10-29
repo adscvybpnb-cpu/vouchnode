@@ -36,6 +36,7 @@ interface PasswordForm {
 const backendOrigin = API_ORIGIN;
 const resolveAvatarUrl = (url: string) => url.startsWith('/') ? `${backendOrigin}${url}` : url;
 const getUserAvatar = (user: User | null) => user?.avatarUrl || (user as any)?.avatar || (user as any)?.image || '';
+const USERNAME_CHANGE_COOLDOWN_MS = 8 * 24 * 60 * 60 * 1000;
 
 const COMMON_TIMEZONES = [
   'UTC', 'America/New_York', 'America/Los_Angeles', 'America/Chicago', 'America/Denver',
@@ -86,6 +87,8 @@ export default function ProfilePage() {
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingUsername, setIsSavingUsername] = useState(false);
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isLoadingTelegram, setIsLoadingTelegram] = useState(false);
   const [isLinkingTelegram, setIsLinkingTelegram] = useState(false);
@@ -130,6 +133,15 @@ export default function ProfilePage() {
   }, [user]);
 
   useEffect(() => {
+    if (!user?.usernameChangedAt) return;
+    const nextAllowedChangeAt = new Date(user.usernameChangedAt).getTime() + USERNAME_CHANGE_COOLDOWN_MS;
+    const delay = nextAllowedChangeAt - Date.now();
+    if (delay <= 0) return;
+    const timeout = window.setTimeout(() => setCurrentTime(Date.now()), delay);
+    return () => window.clearTimeout(timeout);
+  }, [user?.usernameChangedAt]);
+
+  useEffect(() => {
     if (activeTab !== 'security') return;
     let cancelled = false;
     const refreshTelegramStatus = async () => {
@@ -172,6 +184,16 @@ export default function ProfilePage() {
   const updateProfileField = (field: keyof ProfileForm, value: string) => {
     setProfile((current) => ({ ...current, [field]: value }));
   };
+
+  const usernameIsDirty = profile.username.trim() !== (user?.username || '');
+  const usernameChangedAt = user?.usernameChangedAt ? new Date(user.usernameChangedAt) : null;
+  const nextUsernameChangeAt = usernameChangedAt
+    ? new Date(usernameChangedAt.getTime() + USERNAME_CHANGE_COOLDOWN_MS)
+    : null;
+  const isUsernameCoolingDown = Boolean(nextUsernameChangeAt && nextUsernameChangeAt.getTime() > currentTime);
+  const nextUsernameChangeDate = nextUsernameChangeAt
+    ? new Intl.DateTimeFormat('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }).format(nextUsernameChangeAt)
+    : null;
 
   const handleAvatarClick = () => {
     fileInputRef.current?.click();
@@ -268,7 +290,6 @@ export default function ProfilePage() {
     try {
       const updateData: any = {
         displayName: profile.displayName.trim(),
-        username: profile.username.trim(),
         bio: profile.bio.trim() || null,
         countryCode: profile.countryCode.trim() || null,
         timezone: profile.timezone.trim() || null,
@@ -281,12 +302,44 @@ export default function ProfilePage() {
 
       const response = await apiClient.patch('/users/profile', updateData);
       if (response.error) throw new Error(response.error);
-      if (response.data) updateUser(response.data as Partial<User>);
+      updateUser({
+        displayName: profile.displayName.trim(),
+        bio: profile.bio.trim(),
+        countryCode: profile.countryCode.trim(),
+        timezone: profile.timezone.trim(),
+        language: profile.language.trim(),
+        twitterUrl: profile.twitterUrl.trim(),
+        linkedinUrl: profile.linkedinUrl.trim(),
+        githubUrl: profile.githubUrl.trim(),
+        websiteUrl: profile.websiteUrl.trim(),
+      });
       setMessage('Profile changes saved successfully.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to save profile changes.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleUsernameSave = async () => {
+    if (!usernameIsDirty || isSavingUsername || isUsernameCoolingDown) return;
+    setIsSavingUsername(true);
+    setMessage('');
+    setError('');
+    try {
+      const response = await apiClient.patch<{ username: string; usernameChangedAt: string | null }>(
+        '/users/profile',
+        { username: profile.username.trim() },
+      );
+      if (response.error) throw new Error(response.error);
+      if (!response.data) throw new Error('Username update returned no profile data.');
+      updateUser(response.data);
+      setCurrentTime(Date.now());
+      setMessage('Username updated successfully.');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to update your username.');
+    } finally {
+      setIsSavingUsername(false);
     }
   };
 
@@ -451,12 +504,30 @@ export default function ProfilePage() {
                   id="username"
                   value={profile.username}
                   onChange={(e) => updateProfileField('username', e.target.value)}
+                  disabled={isUsernameCoolingDown || isSavingUsername}
                   minLength={3}
                   maxLength={30}
                   pattern="[a-zA-Z0-9_]+"
                   required
                 />
-                <p className="text-xs text-slate-500">You can change your username once every 8 days.</p>
+                {usernameIsDirty && !isUsernameCoolingDown && (
+                  <Button
+                    type="button"
+                    onClick={() => void handleUsernameSave()}
+                    isLoading={isSavingUsername}
+                    className="mt-2"
+                  >
+                    <Save className="mr-2 h-4 w-4" />
+                    Save Changes
+                  </Button>
+                )}
+                <p className="text-xs text-slate-500">
+                  {nextUsernameChangeDate && isUsernameCoolingDown
+                    ? `You can next change your username on: ${nextUsernameChangeDate}`
+                    : nextUsernameChangeDate
+                      ? 'You can change your username now.'
+                      : 'You can change your username once every 8 days.'}
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email Address</Label>
@@ -467,7 +538,7 @@ export default function ProfilePage() {
                     type="email"
                     className="pl-9"
                     value={profile.email}
-                    onChange={(e) => updateProfileField('email', e.target.value)}
+                    disabled
                     required
                   />
                 </div>
