@@ -83,7 +83,7 @@ export default async function walletRoutes(app: FastifyInstance) {
       if (!detectedType || !['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(detectedType.mime)) {
         return res.status(415).send({ message: 'The uploaded file is not a supported image.' });
       }
-      const extension = detectedType.ext === 'jpeg' ? 'jpg' : detectedType.ext;
+      const extension = detectedType.mime === 'image/jpeg' ? 'jpg' : detectedType.ext;
       const storage = createStorageProvider(
         config.storage.provider,
         config.storage.local.path,
