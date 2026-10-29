@@ -294,7 +294,7 @@ export default function HomePageContent({
                 </button>
                 <div className="flex flex-col items-start gap-2">
                   <span className="rounded-full border border-emerald-300/40 bg-emerald-300/15 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-100 shadow-[0_0_24px_rgba(52,211,153,0.2)]">
-                    EARN 50% INSTANT COMMISSIONS
+                    EARN 50% OF PLATFORM FEES ON SUCCESSFUL REFERRED ORDERS
                   </span>
                   <Link href="/referrals" className="inline-flex items-center gap-2.5 rounded-xl border border-emerald-300/50 bg-emerald-400/15 px-6 py-3.5 text-base font-bold text-emerald-50 shadow-[0_0_30px_rgba(52,211,153,0.18)] transition hover:border-emerald-200/80 hover:bg-emerald-400/25 hover:shadow-[0_0_36px_rgba(52,211,153,0.3)]">
                     <Gift className="h-5 w-5 text-emerald-200" /> Refer &amp; Earn 50% ↗️

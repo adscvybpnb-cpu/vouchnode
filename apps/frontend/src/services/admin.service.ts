@@ -119,12 +119,6 @@ export interface AdminReferralSummary {
   commissions: AdminReferralCommissionTotal[];
 }
 
-export interface AdminReferralSettings {
-  enabled: boolean;
-  commissionRatePercent: number;
-  platformFeeCapPercent: number;
-}
-
 export interface AdminSeller extends Omit<Seller, 'status'> {
   status?: string;
   user?: { email?: string };
@@ -320,12 +314,6 @@ export const adminService = {
   },
   async getReferralSummary() {
     return unwrap(adminApiClient.get<AdminReferralSummary>('/referrals/summary'));
-  },
-  async getReferralSettings() {
-    return unwrap(adminApiClient.get<AdminReferralSettings>('/referrals/settings'));
-  },
-  async updateReferralSettings(settings: AdminReferralSettings) {
-    return unwrap(adminApiClient.patch<AdminReferralSettings>('/referrals/settings', settings));
   },
   async getReferrals(page = 1, search = '') {
     const query = new URLSearchParams({ page: String(page), limit: '25' });

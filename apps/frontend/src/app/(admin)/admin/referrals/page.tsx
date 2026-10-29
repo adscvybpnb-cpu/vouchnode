@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import {
   adminService,
-  type AdminReferralSettings,
   type AdminReferralSummary,
   type AdminReferralTreeRow,
 } from '@/services/admin.service';
@@ -12,11 +11,6 @@ import type { PaginatedResponse } from '@/types/api.types';
 
 export default function AdminReferralsPage() {
   const [summary, setSummary] = useState<AdminReferralSummary | null>(null);
-  const [settings, setSettings] = useState<AdminReferralSettings | null>(null);
-  const [commissionRatePercent, setCommissionRatePercent] = useState('');
-  const [platformFeeCapPercent, setPlatformFeeCapPercent] = useState('');
-  const [savingSettings, setSavingSettings] = useState(false);
-  const [settingsSaved, setSettingsSaved] = useState(false);
   const [result, setResult] = useState<PaginatedResponse<AdminReferralTreeRow> | null>(null);
   const [search, setSearch] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
@@ -28,16 +22,12 @@ export default function AdminReferralsPage() {
     setLoading(true);
     setError('');
     try {
-      const [nextSummary, nextResult, nextSettings] = await Promise.all([
+      const [nextSummary, nextResult] = await Promise.all([
         adminService.getReferralSummary(),
         adminService.getReferrals(page, appliedSearch),
-        adminService.getReferralSettings(),
       ]);
       setSummary(nextSummary);
       setResult(nextResult);
-      setSettings(nextSettings);
-      setCommissionRatePercent(String(nextSettings.commissionRatePercent));
-      setPlatformFeeCapPercent(String(nextSettings.platformFeeCapPercent));
     } catch (loadError) {
       console.error('Failed to load admin referrals', loadError);
       setError('Unable to load referral data. Please retry.');
@@ -54,37 +44,6 @@ export default function AdminReferralsPage() {
     event.preventDefault();
     setPage(1);
     setAppliedSearch(search.trim());
-  };
-
-  const saveSettings = async () => {
-    const commissionRate = Number(commissionRatePercent);
-    const platformFeeCap = Number(platformFeeCapPercent);
-    if (
-      !Number.isFinite(commissionRate) || commissionRate < 0 || commissionRate > 100 ||
-      !Number.isFinite(platformFeeCap) || platformFeeCap < 0 || platformFeeCap > 100
-    ) {
-      setError('Referral rates must be between 0 and 100 percent.');
-      return;
-    }
-    setSavingSettings(true);
-    setSettingsSaved(false);
-    setError('');
-    try {
-      const updated = await adminService.updateReferralSettings({
-        enabled: settings?.enabled ?? true,
-        commissionRatePercent: commissionRate,
-        platformFeeCapPercent: platformFeeCap,
-      });
-      setSettings(updated);
-      setCommissionRatePercent(String(updated.commissionRatePercent));
-      setPlatformFeeCapPercent(String(updated.platformFeeCapPercent));
-      setSettingsSaved(true);
-    } catch (saveError) {
-      console.error('Failed to update referral settings', saveError);
-      setError(saveError instanceof Error ? saveError.message : 'Unable to update referral settings.');
-    } finally {
-      setSavingSettings(false);
-    }
   };
 
   return (
@@ -134,41 +93,12 @@ export default function AdminReferralsPage() {
       </section>
 
       <section className="mb-6 rounded-2xl border border-white/10 bg-[#12131a] p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold">Referral policy</h2>
-            <p className="mt-1 max-w-2xl text-sm text-slate-400">Changes apply to new completed-order commissions. Disabling bonuses does not reverse commissions already credited.</p>
-          </div>
-          <button
-            type="button"
-            disabled={!settings || savingSettings}
-            onClick={() => void saveSettings()}
-            className="rounded-xl bg-indigo-500 px-4 py-2 text-sm font-semibold hover:bg-indigo-400 disabled:opacity-50"
-          >
-            {savingSettings ? 'Saving…' : 'Save policy'}
-          </button>
-        </div>
-        {settingsSaved && <p role="status" className="mt-3 text-sm text-emerald-300">Referral policy saved.</p>}
-        <div className="mt-4 grid gap-4 md:grid-cols-3">
-          <label className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4">
-            <input
-              type="checkbox"
-              checked={settings?.enabled ?? false}
-              disabled={!settings || savingSettings}
-              onChange={(event) => setSettings((current) => current ? { ...current, enabled: event.target.checked } : current)}
-              className="h-4 w-4 accent-indigo-400"
-            />
-            <span><span className="block text-sm font-medium">Referral bonuses enabled</span><span className="text-xs text-slate-400">Controls new bonus accruals</span></span>
-          </label>
-          <label className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-            <span className="block text-sm font-medium">Commission rate (%)</span>
-            <input type="number" min="0" max="100" step="0.1" value={commissionRatePercent} onChange={(event) => setCommissionRatePercent(event.target.value)} disabled={!settings || savingSettings} className="mt-2 w-full rounded-lg border border-white/10 bg-[#0d0f14] px-3 py-2 text-sm text-white disabled:opacity-50" />
-          </label>
-          <label className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-            <span className="block text-sm font-medium">Platform fee cap (%)</span>
-            <input type="number" min="0" max="100" step="0.1" value={platformFeeCapPercent} onChange={(event) => setPlatformFeeCapPercent(event.target.value)} disabled={!settings || savingSettings} className="mt-2 w-full rounded-lg border border-white/10 bg-[#0d0f14] px-3 py-2 text-sm text-white disabled:opacity-50" />
-          </label>
-        </div>
+        <h2 className="text-lg font-semibold">Referral policy</h2>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+          Referrers earn 50% of the platform trading fee for every successful eligible marketplace order
+          completed by a customer they referred. The commission is calculated from the platform fee
+          recorded on that order and credited after successful completion.
+        </p>
       </section>
 
       <div className="overflow-x-auto rounded-3xl border border-white/10 bg-[#12131a]">

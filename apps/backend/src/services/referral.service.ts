@@ -2,46 +2,16 @@ import { Prisma } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import { prisma } from '../lib/prisma';
 import { WalletRepository } from '../repositories/wallet.repository';
-import { SystemSettingsService } from './system-settings.service';
 
-const REFERRAL_RATE = new Prisma.Decimal('0.01');
-const PLATFORM_FEE_CAP = new Prisma.Decimal('0.20');
+const REFERRAL_PLATFORM_FEE_SHARE = new Prisma.Decimal('0.5');
 
 export function calculateReferralCommission(
-  totalAmount: Prisma.Decimal,
   platformFee: Prisma.Decimal,
-  referralRate = REFERRAL_RATE,
-  platformFeeCap = PLATFORM_FEE_CAP,
 ) {
-  return Prisma.Decimal.min(
-    totalAmount.mul(referralRate),
-    platformFee.mul(platformFeeCap),
-  );
+  return platformFee.mul(REFERRAL_PLATFORM_FEE_SHARE);
 }
 
 export class ReferralService {
-  static async getPolicySettings() {
-    const [enabled, commissionRatePercent, platformFeeCapPercent] = await Promise.all([
-      SystemSettingsService.getSetting('referral_bonuses_enabled', true),
-      SystemSettingsService.getSetting('referral_commission_rate_percent', 1),
-      SystemSettingsService.getSetting('referral_platform_fee_cap_percent', 20),
-    ]);
-    if (
-      typeof enabled !== 'boolean' ||
-      typeof commissionRatePercent !== 'number' ||
-      !Number.isFinite(commissionRatePercent) ||
-      commissionRatePercent < 0 ||
-      commissionRatePercent > 100 ||
-      typeof platformFeeCapPercent !== 'number' ||
-      !Number.isFinite(platformFeeCapPercent) ||
-      platformFeeCapPercent < 0 ||
-      platformFeeCapPercent > 100
-    ) {
-      throw Object.assign(new Error('Referral settings are invalid'), { statusCode: 500 });
-    }
-    return { enabled, commissionRatePercent, platformFeeCapPercent };
-  }
-
   static async getOverview(userId: string) {
     let user = await prisma.user.findUnique({
       where: { id: userId },
@@ -82,27 +52,18 @@ export class ReferralService {
     order: {
       id: string;
       buyerId: string;
-      totalAmount: Prisma.Decimal;
       platformFee: Prisma.Decimal;
       currency: string;
       transaction?: { id: string } | null;
     },
   ): Promise<{ referrerId: string; amount: Prisma.Decimal; currency: string } | null> {
-    const { enabled, commissionRatePercent, platformFeeCapPercent } = await this.getPolicySettings();
-    if (!enabled) return null;
-
     const buyer = await tx.user.findUnique({
       where: { id: order.buyerId },
       select: { referredById: true },
     });
     if (!buyer?.referredById) return null;
 
-    const commission = calculateReferralCommission(
-      order.totalAmount,
-      order.platformFee,
-      new Prisma.Decimal(commissionRatePercent).div(100),
-      new Prisma.Decimal(platformFeeCapPercent).div(100),
-    );
+    const commission = calculateReferralCommission(order.platformFee);
     if (!commission.gt(0)) return null;
 
     const created = await tx.referralCommission.createMany({

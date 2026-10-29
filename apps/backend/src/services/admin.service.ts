@@ -1051,9 +1051,6 @@ export class AdminService {
       { key: 'order_payment_timeout_hours', value: '24', type: 'NUMBER', group: 'operations', description: 'Payment window for regular orders.' },
       { key: 'seller_response_period_hours', value: '48', type: 'NUMBER', group: 'operations', description: 'Seller response SLA in hours.' },
       { key: 'seller_fast_launch_enabled', value: 'false', type: 'BOOLEAN', group: 'operations', description: 'Allow new seller applicants to skip KYC document submission and receive instant seller approval without identity verification.' },
-      { key: 'referral_bonuses_enabled', value: 'true', type: 'BOOLEAN', group: 'referrals', description: 'Enable or disable new referral bonus accruals. Existing commissions are not reversed.' },
-      { key: 'referral_commission_rate_percent', value: '1', type: 'NUMBER', group: 'referrals', description: 'Referral commission percentage of the completed order amount.' },
-      { key: 'referral_platform_fee_cap_percent', value: '20', type: 'NUMBER', group: 'referrals', description: 'Maximum referral commission as a percentage of the platform fee.' },
     ];
     await prisma.$transaction(defaults.map((setting) => prisma.systemSetting.upsert({
       where: { key: setting.key },
@@ -1076,9 +1073,6 @@ export class AdminService {
       'order_payment_timeout_hours',
       'seller_response_period_hours',
       'seller_fast_launch_enabled',
-      'referral_bonuses_enabled',
-      'referral_commission_rate_percent',
-      'referral_platform_fee_cap_percent',
     ]);
     const entries = Object.entries(settings);
     const unsupported = entries.map(([key]) => key).filter((key) => !allowedKeys.has(key));
@@ -1086,32 +1080,24 @@ export class AdminService {
       throw Object.assign(new Error(`Unsupported settings: ${unsupported.join(', ')}`), { statusCode: 400 });
     }
     const normalizedEntries = entries.map(([key, value]) => {
-      if (key === 'referral_bonuses_enabled' || key === 'seller_fast_launch_enabled') {
+      if (key === 'seller_fast_launch_enabled') {
         if (value !== true && value !== false && value !== 'true' && value !== 'false') {
           throw Object.assign(new Error(`${key} must be true or false`), { statusCode: 400 });
         }
         return [key, value === true || value === 'true'] as const;
       }
-      if (key === 'referral_commission_rate_percent' || key === 'referral_platform_fee_cap_percent') {
-        const numberValue = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : NaN;
-        if (!Number.isFinite(numberValue) || numberValue < 0 || numberValue > 100) {
-          throw Object.assign(new Error(`${key} must be a number from 0 to 100`), { statusCode: 400 });
-        }
-        return [key, numberValue] as const;
-      }
       return [key, value] as const;
     });
     await prisma.$transaction(async (tx) => {
       for (const [key, value] of normalizedEntries) {
-        const referralSetting = key.startsWith('referral_');
-        const type = key === 'referral_bonuses_enabled' || key === 'seller_fast_launch_enabled'
+        const type = key === 'seller_fast_launch_enabled'
           ? 'BOOLEAN'
-          : referralSetting ? 'NUMBER' : undefined;
+          : undefined;
         const settingValue = typeof value === 'string' ? value : JSON.stringify(value);
         await tx.systemSetting.upsert({
           where: { key },
-          create: { key, value: settingValue, type: type ?? (typeof value === 'boolean' ? 'BOOLEAN' : typeof value === 'number' ? 'NUMBER' : 'STRING'), group: referralSetting ? 'referrals' : key === 'seller_fast_launch_enabled' ? 'operations' : undefined, updatedBy: adminId },
-          update: { value: settingValue, ...(type ? { type } : {}), ...(referralSetting ? { group: 'referrals' } : key === 'seller_fast_launch_enabled' ? { group: 'operations' } : {}), updatedBy: adminId },
+          create: { key, value: settingValue, type: type ?? (typeof value === 'boolean' ? 'BOOLEAN' : typeof value === 'number' ? 'NUMBER' : 'STRING'), group: key === 'seller_fast_launch_enabled' ? 'operations' : undefined, updatedBy: adminId },
+          update: { value: settingValue, ...(type ? { type } : {}), ...(key === 'seller_fast_launch_enabled' ? { group: 'operations' } : {}), updatedBy: adminId },
         });
       }
 

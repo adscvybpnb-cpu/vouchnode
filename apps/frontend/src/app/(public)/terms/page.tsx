@@ -80,6 +80,15 @@ export default function TermsPage() {
             </p>
           </Clause>
 
+          <Clause title="Referral commissions">
+            <p>
+              When a customer who joined through a referral completes an eligible marketplace order, the
+              referrer receives a commission equal to 50% of the platform trading fee recorded for that
+              order. The commission is credited after successful order completion. Referral commissions
+              are calculated from the platform fee, not from the order value.
+            </p>
+          </Clause>
+
           <Clause title="5. Disputes, evidence, and transaction finality">
             <p>Initiate a trade dispute only from the relevant order or P2P trade details page while the dispute control is available. Follow displayed deadlines, provide truthful and complete evidence, and respond promptly to reasonable requests. General technical or account issues may be reported through the <Link href="/support/ticket" className="text-indigo-300 hover:underline">support ticket form</Link>; a general ticket is not a substitute for an order dispute.</p>
             <p>VouchNodes may review order records, in-product messages, submitted evidence, transaction history, and available blockchain data to administer a dispute. We may apply the order rules and available evidence to determine whether escrow should remain reserved or be released. A platform determination does not reverse a blockchain transaction or bind an external issuer, bank, or court.</p>

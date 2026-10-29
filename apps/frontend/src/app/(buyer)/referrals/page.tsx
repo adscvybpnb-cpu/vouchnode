@@ -107,7 +107,7 @@ export default function ReferralsPage() {
             </div>
             <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-300"><Wallet className="h-6 w-6" /></span>
           </div>
-          <p className="mt-3 text-xs text-slate-500">1% of eligible purchase value, capped at 20% of the platform fee.</p>
+          <p className="mt-3 text-xs text-slate-500">Earn 50% of the platform fee on each successful eligible marketplace order made by a referred customer.</p>
         </div>
       </section>
       {loading && <p className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" />Loading referral overview…</p>}

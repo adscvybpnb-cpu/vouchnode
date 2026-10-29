@@ -199,7 +199,7 @@ export default function AboutPage() {
             VouchNodes referral program
           </p>
           <h2 id="referral-program" className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-            Share VouchNodes. Earn on eligible purchases.
+            Share VouchNodes. Earn 50% of platform fees.
           </h2>
           <div className="mt-4 max-w-4xl space-y-4 text-sm leading-7 text-slate-300 sm:text-base">
             <p>
@@ -210,10 +210,9 @@ export default function AboutPage() {
               products, and other marketplace listings.
             </p>
             <p>
-              Referral commissions are not a guaranteed income or a 50% revenue share. The current standard
-              policy calculates commission at 1% of eligible completed order value, capped at 20% of the
-              platform fee for that order; settings and eligibility may change. The final amount depends on
-              the completed transaction and applicable policy. Sign in and visit{' '}
+              Referrers earn a flat 50% share of the platform trading fee on each successful eligible
+              marketplace order made by a referred customer. The commission is calculated from the fee
+              recorded for that completed order. Sign in and visit{' '}
               <Link href="/referrals" className="font-semibold text-emerald-200 underline decoration-emerald-300/40 underline-offset-4 hover:text-emerald-100">
                 Referrals
               </Link>{' '}

@@ -1,6 +1,5 @@
 import { FastifyInstance } from 'fastify';
 import { AdminService } from '../services/admin.service';
-import { ReferralService } from '../services/referral.service';
 import { authenticate, requireAdminToken, requireRole } from '../middleware/auth.middleware';
 import { UserRole } from '@vouchnode/shared';
 import { MessageService } from '../services/message.service';
@@ -260,23 +259,6 @@ export default async function adminRoutes(app: FastifyInstance) {
         count: row._count._all,
       })),
     });
-  });
-  app.get('/referrals/settings', { preHandler: [requireRole([UserRole.ADMIN])] }, async (_req, res) => {
-    return res.send(await ReferralService.getPolicySettings());
-  });
-  app.patch('/referrals/settings', { preHandler: [requireRole([UserRole.ADMIN])] }, async (req: any, res) => {
-    const parsed = z.object({
-      enabled: z.boolean(),
-      commissionRatePercent: z.number().finite().min(0).max(100),
-      platformFeeCapPercent: z.number().finite().min(0).max(100),
-    }).strict().safeParse(req.body);
-    if (!parsed.success) return res.status(400).send({ message: 'Referral settings require a boolean and percentage values from 0 to 100' });
-    await AdminService.updateSettings(req.user.id, {
-      referral_bonuses_enabled: parsed.data.enabled,
-      referral_commission_rate_percent: parsed.data.commissionRatePercent,
-      referral_platform_fee_cap_percent: parsed.data.platformFeeCapPercent,
-    });
-    return res.send(parsed.data);
   });
   app.get('/referrals', { preHandler: [requireRole([UserRole.ADMIN])] }, async (req: any, res) => {
     const query = z.object({
