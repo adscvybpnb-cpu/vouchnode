@@ -6,10 +6,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ShieldCheck } from 'lucide-react';
 import { p2pService, type P2POffer } from '@/services/p2p.service';
 import { OfferTerms } from '@/components/p2p/OfferTerms';
+import { P2PMerchantAvatar } from '@/components/p2p/P2PMerchantAvatar';
+import { useAuthStore } from '@/store/auth.store';
+import { useSocket } from '@/hooks/useSocket';
 
 export default function P2PTradePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const user = useAuthStore((state) => state.user);
+  const { socket: presenceSocket } = useSocket('/presence');
   const [offer, setOffer] = useState<P2POffer | null>(null);
   const [giftCardValue, setGiftCardValue] = useState('');
   const [loading, setLoading] = useState(true);
@@ -31,6 +36,28 @@ export default function P2PTradePage() {
       .catch((cause) => setError(cause instanceof Error ? cause.message : 'Unable to load offer.'))
       .finally(() => setLoading(false));
   }, [params.id]);
+
+  useEffect(() => {
+    if (!presenceSocket) return;
+    const handleProfileUpdate = (payload: {
+      userId: string;
+      profile: { username: string; displayName: string; avatarUrl: string | null };
+    }) => {
+      if (!payload?.userId || !payload.profile) return;
+      setOffer((current) => current?.userId === payload.userId
+        ? {
+            ...current,
+            username: payload.profile.username,
+            merchantName: payload.profile.displayName || payload.profile.username,
+            avatarUrl: payload.profile.avatarUrl,
+          }
+        : current);
+    };
+    presenceSocket.on('user:profile-updated', handleProfileUpdate);
+    return () => {
+      presenceSocket.off('user:profile-updated', handleProfileUpdate);
+    };
+  }, [presenceSocket]);
 
   const cryptoAmount = useMemo(() => {
     const value = Number(giftCardValue);
@@ -96,6 +123,11 @@ export default function P2PTradePage() {
     return <main className="min-h-screen bg-[#07090f] p-6 text-center text-red-200">{error || 'Offer not found.'}</main>;
   }
 
+  const ownProfile = offer.userId === user?.id ? user : null;
+  const merchantName = ownProfile ? ownProfile.displayName || ownProfile.username : offer.merchantName;
+  const merchantUsername = ownProfile?.username || offer.username;
+  const merchantAvatarUrl = ownProfile ? ownProfile.avatarUrl : offer.avatarUrl;
+
   return (
     <main className="min-h-screen bg-[#07090f] px-4 py-6 text-white sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
@@ -103,9 +135,9 @@ export default function P2PTradePage() {
           <ArrowLeft className="h-4 w-4" /> Back to P2P offers
         </Link>
         <header className="mt-6 flex items-center gap-4 rounded-2xl border border-white/10 bg-[#11141d] p-5 shadow-2xl">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-cyan-500 text-xl font-black text-slate-950">{offer.merchantName.charAt(0).toUpperCase()}</div>
+          <P2PMerchantAvatar name={merchantName} avatarUrl={merchantAvatarUrl} className="h-14 w-14 rounded-full text-xl" />
           <div>
-            <h1 className="text-xl font-black">@{offer.username}</h1>
+            <h1 className="text-xl font-black">@{merchantUsername}</h1>
             <div className="mt-1 flex items-center gap-2 text-sm text-slate-400"><span className={`h-2 w-2 rounded-full ${offer.isOnline ? 'bg-emerald-400' : 'bg-slate-600'}`} />{offer.isOnline ? 'Online' : 'Offline'}</div>
           </div>
         </header>

@@ -199,6 +199,13 @@ export function emitP2POfferBalanceUpdate(userId: string, cryptoAsset: string) {
   socketServer?.of('/presence').emit('p2p:offers-updated', { userId, cryptoAsset });
 }
 
+export function emitUserProfileUpdated(
+  userId: string,
+  profile: { username: string; displayName: string; avatarUrl: string | null },
+) {
+  socketServer?.of('/presence').emit('user:profile-updated', { userId, profile });
+}
+
 export function emitMarketplaceOrderEvent(orderId: string, event: string, payload: unknown) {
   socketServer?.of('/chat').to(`order-${orderId}`).emit(event, payload);
   void redis.publish(MARKETPLACE_ORDER_CHANNEL, JSON.stringify({

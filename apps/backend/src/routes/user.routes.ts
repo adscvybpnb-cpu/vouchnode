@@ -13,6 +13,7 @@ import { prisma } from '../lib/prisma';
 import { UserService } from '../services/user.service';
 import { createStorageProvider } from '../integrations/storage/storage.provider';
 import { randomUUID } from 'node:crypto';
+import { emitUserProfileUpdated } from '../websocket/socket.server';
 
 const depositSessionSchema = z.object({
   currency: z.string().trim().min(2).max(10).transform((value) => value.toUpperCase()),
@@ -64,7 +65,13 @@ export default async function walletRoutes(app: FastifyInstance) {
       return res.status(400).send({ message: parsed.error.issues[0]?.message || 'Invalid profile details.' });
     }
     try {
-      return res.send({ data: await UserService.updateProfile(req.user.id, parsed.data) });
+      const profile = await UserService.updateProfile(req.user.id, parsed.data);
+      emitUserProfileUpdated(req.user.id, {
+        username: profile.username,
+        displayName: profile.displayName,
+        avatarUrl: profile.avatarUrl,
+      });
+      return res.send({ data: profile });
     } catch (error) {
       const statusCode = error && typeof error === 'object' && 'statusCode' in error &&
         typeof error.statusCode === 'number'
@@ -111,7 +118,12 @@ export default async function walletRoutes(app: FastifyInstance) {
         `avatars/${req.user.id}`,
         `${Date.now()}-${randomUUID()}.${extension}`,
       );
-      await UserService.uploadAvatar(req.user.id, uploaded.url);
+      const profile = await UserService.uploadAvatar(req.user.id, uploaded.url);
+      emitUserProfileUpdated(req.user.id, {
+        username: profile.username,
+        displayName: profile.displayName,
+        avatarUrl: profile.avatarUrl,
+      });
       return res.send({ data: { avatarUrl: uploaded.url } });
     } catch (error) {
       req.log.error({ error, userId: req.user.id }, 'Profile avatar upload failed');

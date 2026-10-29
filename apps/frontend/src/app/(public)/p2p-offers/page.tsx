@@ -7,9 +7,10 @@ import { ArrowLeft, ArrowRight, Check, ChevronDown, Clock3, ClipboardList, Copy,
 import { Button } from '@/components/ui/button';
 import { p2pService, type P2POrder, type P2POffer, type P2PProfile } from '@/services/p2p.service';
 import { useAuth } from '@/hooks/useAuth';
-import { useAuthStore } from '@/store/auth.store';
+import { useAuthStore, type User } from '@/store/auth.store';
 import { getSellerOnboardingPath, isApprovedSeller } from '@/lib/seller-access';
 import { ResponsiveRowCard } from '@/components/layout/ResponsiveRowCard';
+import { P2PMerchantAvatar } from '@/components/p2p/P2PMerchantAvatar';
 import { AUTO_P2P_PAYMENT_METHODS } from '@vouchnode/shared';
 import { useSocket } from '@/hooks/useSocket';
 
@@ -81,7 +82,7 @@ const allGiftCards = [
   'eGifter.com code'
 ];
 
-function MerchantProfileView({ profile, loading, error }: { profile: P2PProfile | null; loading: boolean; error: string }) {
+function MerchantProfileView({ profile, loading, error, currentUser }: { profile: P2PProfile | null; loading: boolean; error: string; currentUser: User | null }) {
   const [profileTab, setProfileTab] = useState<ProfileTab>('Info');
   if (loading) return <div className="mx-auto max-w-5xl rounded-2xl border border-white/10 bg-[#11141d] p-12 text-center text-slate-400">Loading merchant profile...</div>;
   if (error) return <div className="mx-auto max-w-5xl rounded-2xl border border-red-400/30 bg-red-400/10 p-5 text-red-200">{error}</div>;
@@ -92,18 +93,23 @@ function MerchantProfileView({ profile, loading, error }: { profile: P2PProfile 
     ['Identity', profile.verification.identity],
     ['Deposit', profile.verification.hasP2PInsuranceDeposit]
   ] as const;
+  const displayName = profile.id === currentUser?.id
+    ? currentUser.displayName || currentUser.username
+    : profile.displayName;
+  const username = profile.id === currentUser?.id ? currentUser.username : profile.username;
+  const avatarUrl = profile.id === currentUser?.id ? currentUser.avatarUrl : profile.avatarUrl;
   return (
     <section className="mx-auto max-w-5xl">
       <div className="rounded-2xl border border-white/10 bg-[#11141d] p-5 shadow-2xl sm:p-8">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 text-2xl font-black text-slate-950">{profile.displayName.charAt(0).toUpperCase()}</div>
+            <P2PMerchantAvatar name={displayName} avatarUrl={avatarUrl} className="h-16 w-16 rounded-2xl text-2xl" />
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-black tracking-tight">{profile.displayName}</h1>
+                <h1 className="text-2xl font-black tracking-tight">{displayName}</h1>
                 <button type="button" aria-label="Favorite merchant" className="text-amber-300 transition hover:scale-110"><Heart className="h-5 w-5 fill-current" /></button>
               </div>
-              <p className="mt-1 truncate text-sm text-slate-500">@{profile.username}</p>
+              <p className="mt-1 truncate text-sm text-slate-500">@{username}</p>
               <span className={`mt-2 inline-flex items-center gap-2 text-sm font-medium ${profile.isOnline ? 'text-emerald-300' : 'text-slate-500'}`}><span className={`h-2 w-2 rounded-full ${profile.isOnline ? 'bg-emerald-400' : 'bg-slate-600'}`} />{profile.isOnline ? 'Online' : 'Offline'}</span>
             </div>
           </div>
@@ -391,6 +397,35 @@ export default function P2POffersPage() {
     return () => window.removeEventListener('presence:update', handlePresenceUpdate);
   }, [user?.id]);
   useEffect(() => {
+    if (!presenceSocket) return;
+    const handleProfileUpdate = (payload: {
+      userId: string;
+      profile: { username: string; displayName: string; avatarUrl: string | null };
+    }) => {
+      if (!payload?.userId || !payload.profile) return;
+      setOffers((current) => current.map((offer) => offer.userId === payload.userId
+        ? {
+            ...offer,
+            username: payload.profile.username,
+            merchantName: payload.profile.displayName || payload.profile.username,
+            avatarUrl: payload.profile.avatarUrl,
+          }
+        : offer));
+      setProfile((current) => current?.id === payload.userId
+        ? {
+            ...current,
+            username: payload.profile.username,
+            displayName: payload.profile.displayName || payload.profile.username,
+            avatarUrl: payload.profile.avatarUrl,
+          }
+        : current);
+    };
+    presenceSocket.on('user:profile-updated', handleProfileUpdate);
+    return () => {
+      presenceSocket.off('user:profile-updated', handleProfileUpdate);
+    };
+  }, [presenceSocket]);
+  useEffect(() => {
     if (activeNavigation === 'Profile' || activeNavigation === 'Ads') {
       setProfileLoading(true); setProfileError('');
       void p2pService.getProfile().then(setProfile).catch((err) => setProfileError(err instanceof Error ? err.message : 'Unable to load profile.')).finally(() => setProfileLoading(false));
@@ -412,7 +447,7 @@ export default function P2POffersPage() {
 
   return (
     <main className="min-h-screen bg-[#07090f] px-4 pb-28 pt-8 text-white sm:px-6 lg:px-8">
-      {activeNavigation === 'Profile' ? <MerchantProfileView profile={profile} loading={profileLoading} error={profileError} /> : activeNavigation === 'Ads' ? <AdsView profile={profile} loading={profileLoading} error={profileError} editOffer={editOffer} onPublished={(deletedId) => { setEditOffer(null); if (deletedId) setProfile((current) => current ? { ...current, ads: current.ads.filter((ad) => ad.id !== deletedId) } : current); setProfileLoading(true); void p2pService.getProfile().then(setProfile).catch((err) => setProfileError(err instanceof Error ? err.message : 'Unable to refresh ads.')).finally(() => setProfileLoading(false)); }} /> : activeNavigation === 'Orders' ? <OrdersView orders={orders} loading={ordersLoading} error={ordersError} /> : <div className="mx-auto max-w-6xl">
+      {activeNavigation === 'Profile' ? <MerchantProfileView profile={profile} loading={profileLoading} error={profileError} currentUser={user} /> : activeNavigation === 'Ads' ? <AdsView profile={profile} loading={profileLoading} error={profileError} editOffer={editOffer} onPublished={(deletedId) => { setEditOffer(null); if (deletedId) setProfile((current) => current ? { ...current, ads: current.ads.filter((ad) => ad.id !== deletedId) } : current); setProfileLoading(true); void p2pService.getProfile().then(setProfile).catch((err) => setProfileError(err instanceof Error ? err.message : 'Unable to refresh ads.')).finally(() => setProfileLoading(false)); }} /> : activeNavigation === 'Orders' ? <OrdersView orders={orders} loading={ordersLoading} error={ordersError} /> : <div className="mx-auto max-w-6xl">
         <div className="mb-8 flex flex-wrap items-end justify-between gap-5">
           <div>
             <p className="text-sm font-medium text-emerald-300">Fast, protected trading</p>
@@ -460,12 +495,17 @@ export default function P2POffersPage() {
         </div>
         {error && <div className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-200">{error}</div>}
         <div className="w-full space-y-2 overflow-hidden">
-          {loading ? <div className="rounded-2xl border border-white/10 bg-[#11141d] p-12 text-center text-slate-400">Loading live offers...</div> : offers.length === 0 ? <div className="rounded-2xl border border-white/10 bg-[#11141d] p-12 text-center text-slate-400">No active merchant offers match these filters.</div> : offers.map((offer) => (
+          {loading ? <div className="rounded-2xl border border-white/10 bg-[#11141d] p-12 text-center text-slate-400">Loading live offers...</div> : offers.length === 0 ? <div className="rounded-2xl border border-white/10 bg-[#11141d] p-12 text-center text-slate-400">No active merchant offers match these filters.</div> : offers.map((offer) => {
+            const ownProfile = offer.userId === user?.id ? user : null;
+            const merchantName = ownProfile ? ownProfile.displayName || ownProfile.username : offer.merchantName;
+            const merchantUsername = ownProfile?.username || offer.username;
+            const merchantAvatarUrl = ownProfile ? ownProfile.avatarUrl : offer.avatarUrl;
+            return (
             <ResponsiveRowCard key={offer.id} className="rounded-xl border border-white/10 bg-[#11141d] shadow-lg transition hover:border-white/20">
                 <Link href={`/p2p-offers/merchant/${offer.merchantId}`} className="flex min-w-0 flex-1 items-center gap-2 rounded-lg transition hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 sm:gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-cyan-500 text-sm font-bold text-slate-950 sm:h-11 sm:w-11">{offer.merchantName.charAt(0).toUpperCase()}</div>
+                  <P2PMerchantAvatar name={merchantName} avatarUrl={merchantAvatarUrl} className="h-9 w-9 rounded-full text-sm sm:h-11 sm:w-11" />
                   <div className="min-w-0">
-                    <div className="flex min-w-0 items-center gap-1.5"><p className="truncate text-sm font-bold text-white sm:text-base">@{offer.username}</p><span className={`h-2 w-2 shrink-0 rounded-full ${offer.isOnline ? 'bg-emerald-400' : 'bg-slate-600'}`} /></div>
+                    <div className="flex min-w-0 items-center gap-1.5"><p className="truncate text-sm font-bold text-white sm:text-base">@{merchantUsername}</p><span className={`h-2 w-2 shrink-0 rounded-full ${offer.isOnline ? 'bg-emerald-400' : 'bg-slate-600'}`} /></div>
                     <p className="mt-0.5 truncate text-[11px] text-slate-500 sm:text-xs">{offer.tradeVolume.toLocaleString()} trades · {offer.completionRate.toFixed(1)}% completion</p>
                     <span className="mt-1 inline-block max-w-full truncate rounded bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">{offer.giftCardType}</span>
                   </div>
@@ -479,7 +519,8 @@ export default function P2POffersPage() {
                   <Button type="button" onClick={() => openTradeForm(offer)} className={`h-9 shrink-0 rounded-lg px-2.5 text-xs text-white sm:px-3 ${offer.userId === user?.id ? 'bg-slate-600 hover:bg-slate-500' : 'bg-blue-500 hover:bg-blue-400'}`}>{offer.userId === user?.id ? 'Edit' : marketSide === 'buy' ? 'Buy' : 'Sell'}{offer.userId === user?.id ? null : <ArrowRight className="ml-1 h-3.5 w-3.5" />}</Button>
                 </div>
             </ResponsiveRowCard>
-          ))}
+          );
+          })}
         </div>
         <div className="mt-6 flex flex-wrap gap-3 text-xs text-slate-400"><span><ShieldCheck className="mr-1 inline h-4 w-4 text-emerald-400" />Platform-protected workflow</span><span><Clock3 className="mr-1 inline h-4 w-4 text-cyan-400" />Live activity priority</span></div>
       </div>}

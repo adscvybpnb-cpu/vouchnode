@@ -6,6 +6,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { favoriteService } from '@/services/favorite.service';
 import { p2pService, type P2PProfile } from '@/services/p2p.service';
 import { useAuthStore } from '@/store/auth.store';
+import { P2PMerchantAvatar } from '@/components/p2p/P2PMerchantAvatar';
+import { useSocket } from '@/hooks/useSocket';
 
 export default function PublicMerchantProfilePage() {
   const reviewsPerPage = 20;
@@ -19,6 +21,8 @@ export default function PublicMerchantProfilePage() {
   const [favoriteError, setFavoriteError] = useState('');
   const [favoriteLoading, setFavoriteLoading] = useState(false);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const currentUser = useAuthStore((state) => state.user);
+  const { socket: presenceSocket } = useSocket('/presence');
 
   useEffect(() => {
     setReviewsPage(1);
@@ -37,12 +41,38 @@ export default function PublicMerchantProfilePage() {
       .finally(() => setLoading(false));
   }, [params.id]);
 
+  useEffect(() => {
+    if (!presenceSocket) return;
+    const handleProfileUpdate = (payload: {
+      userId: string;
+      profile: { username: string; displayName: string; avatarUrl: string | null };
+    }) => {
+      if (!payload?.userId || !payload.profile) return;
+      setProfile((current) => current?.id === payload.userId
+        ? {
+            ...current,
+            username: payload.profile.username,
+            displayName: payload.profile.displayName || payload.profile.username,
+            avatarUrl: payload.profile.avatarUrl,
+          }
+        : current);
+    };
+    presenceSocket.on('user:profile-updated', handleProfileUpdate);
+    return () => {
+      presenceSocket.off('user:profile-updated', handleProfileUpdate);
+    };
+  }, [presenceSocket]);
+
   const reviews = profile?.reviews ?? [];
   const totalReviewPages = Math.ceil(reviews.length / reviewsPerPage);
   const paginatedReviews = reviews.slice(
     (reviewsPage - 1) * reviewsPerPage,
     reviewsPage * reviewsPerPage,
   );
+  const ownProfile = profile?.id === currentUser?.id ? currentUser : null;
+  const displayName = ownProfile ? ownProfile.displayName || ownProfile.username : profile?.displayName || '';
+  const username = ownProfile?.username || profile?.username || '';
+  const avatarUrl = ownProfile ? ownProfile.avatarUrl : profile?.avatarUrl;
 
   useEffect(() => {
     reviewsContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -88,10 +118,10 @@ export default function PublicMerchantProfilePage() {
       {profile && <section className="mx-auto max-w-5xl rounded-2xl border border-white/10 bg-[#11141d] p-5 shadow-2xl sm:p-8">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 text-2xl font-black text-slate-950">{profile.displayName.charAt(0).toUpperCase()}</div>
+            <P2PMerchantAvatar name={displayName} avatarUrl={avatarUrl} className="h-16 w-16 rounded-2xl text-2xl" />
             <div>
-              <h1 className="text-2xl font-black tracking-tight">{profile.displayName}</h1>
-              <p className="mt-1 text-sm text-slate-500">@{profile.username}</p>
+              <h1 className="text-2xl font-black tracking-tight">{displayName}</h1>
+              <p className="mt-1 text-sm text-slate-500">@{username}</p>
               <span className={`mt-2 inline-flex items-center gap-2 text-sm font-medium ${profile.isOnline ? 'text-emerald-300' : 'text-slate-500'}`}><span className={`h-2 w-2 rounded-full ${profile.isOnline ? 'bg-emerald-400' : 'bg-slate-600'}`} />{profile.isOnline ? 'Online' : 'Offline'}</span>
             </div>
           </div>
