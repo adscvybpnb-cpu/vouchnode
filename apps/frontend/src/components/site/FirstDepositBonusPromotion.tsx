@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
+import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Gift, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -9,6 +10,13 @@ import { useFirstDepositBonusEligibility } from '@/hooks/useFirstDepositBonusEli
 import { useAuthStore } from '@/store/auth.store';
 
 export function FirstDepositBonusPromotion() {
+  const pathname = usePathname() ?? '';
+  if (pathname.startsWith('/admin') || pathname.startsWith('/control-plane')) return null;
+
+  return <FirstDepositBonusPromotionDialog />;
+}
+
+function FirstDepositBonusPromotionDialog() {
   const { data, error, hasSession, showPromotion } = useFirstDepositBonusEligibility();
   const { hasHydrated, user } = useAuthStore();
   const [dismissedFor, setDismissedFor] = useState<string | null>(null);
