@@ -1,14 +1,40 @@
+'use client';
+
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { APP_NAME } from '@/lib/constants';
+import { siteConfigService } from '@/services/site-config.service';
+import { VouchNodesLogo } from './VouchNodesLogo';
 
 export function Footer() {
+  const [logoUrl, setLogoUrl] = useState('/favicon.svg');
+
+  useEffect(() => {
+    let active = true;
+    void siteConfigService.getPublic()
+      .then((config) => {
+        if (active) setLogoUrl(config.logoUrl);
+      })
+      .catch((error: unknown) => {
+        console.error('Unable to load the VouchNodes footer logo:', error);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <footer translate="no" className="notranslate mt-auto border-t border-border bg-card pt-12 pb-6">
       <div className="container mx-auto mb-8 px-4">
         <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
           <div>
-            <Link href="/" translate="no" className="notranslate mb-4 block text-xl font-bold text-primary">🎁 VouchNodes</Link>
+            <Link href="/" translate="no" className="notranslate mb-4 inline-flex items-center gap-2.5">
+              <VouchNodesLogo logoUrl={logoUrl} />
+              <span className="text-lg font-bold tracking-tight text-white">{APP_NAME}</span>
+            </Link>
             <p translate="no" className="notranslate mb-4 text-sm text-muted-foreground">
-              The premium marketplace for gift cards and digital assets. Secure, instant, and crypto-friendly.
+              VouchNodes is a premier, secure digital asset marketplace specializing in global gift cards, gaming subscriptions, and crypto-friendly solutions since 2018. Trusted worldwide for instant deliveries and bulletproof escrow protection.
             </p>
           </div>
           <div>
