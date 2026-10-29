@@ -271,18 +271,18 @@ export default function HomePageContent({
         <div className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[#0c1119]">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(99,102,241,0.28),transparent_35%),radial-gradient(circle_at_30%_80%,rgba(16,185,129,0.12),transparent_35%)]" />
           <div className="absolute right-0 top-0 hidden h-full w-1/2 bg-[url('/assets/marketplace/scene.svg')] bg-cover bg-center opacity-25 mix-blend-screen sm:block" />
-          <div className="relative grid min-h-[360px] items-center p-5 sm:min-h-[430px] sm:p-12 lg:p-16">
+          <div className="relative grid min-h-[300px] items-center p-5 sm:min-h-[350px] sm:p-9 lg:p-12">
             <div className="max-w-3xl">
               <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-200">
                 <ShieldCheck className="h-3.5 w-3.5" /> The trusted digital asset layer
               </div>
-              <h1 className="mt-5 max-w-2xl text-4xl font-black leading-[0.98] tracking-[-0.05em] text-white sm:mt-6 sm:text-6xl lg:text-7xl">
+              <h1 className="mt-4 max-w-2xl text-4xl font-black leading-[0.98] tracking-[-0.05em] text-white sm:mt-5 sm:text-6xl lg:text-7xl">
                 Move value.<br /><span className="bg-gradient-to-r from-emerald-300 via-cyan-300 to-indigo-300 bg-clip-text text-transparent">Keep control.</span>
               </h1>
-              <p className="mt-6 max-w-xl text-base leading-7 text-slate-300 sm:text-lg">
+              <p className="mt-4 max-w-xl text-base leading-7 text-slate-300 sm:text-lg">
                 A premium marketplace for gift cards, gaming credits, subscriptions, and crypto exchanges — backed by transparent escrow.
               </p>
-              <div className="mt-8 flex flex-wrap gap-3">
+              <div className="mt-6 flex flex-wrap gap-3">
                 <Link href="/products" prefetch={true} className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-emerald-100">
                   Explore marketplace <ArrowUpRight className="h-4 w-4" />
                 </Link>
