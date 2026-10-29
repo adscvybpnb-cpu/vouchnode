@@ -12,7 +12,6 @@ import { TelegramBotService } from '../integrations/telegram/telegram.bot';
 import { prisma } from '../lib/prisma';
 import { UserService } from '../services/user.service';
 import { createStorageProvider } from '../integrations/storage/storage.provider';
-import { fileTypeFromBuffer } from 'file-type';
 import { randomUUID } from 'node:crypto';
 
 const depositSessionSchema = z.object({
@@ -79,6 +78,7 @@ export default async function walletRoutes(app: FastifyInstance) {
       if (buffer.length > 5 * 1024 * 1024) {
         return res.status(413).send({ message: 'Image must be under 5MB.' });
       }
+      const { fileTypeFromBuffer } = await import('file-type');
       const detectedType = await fileTypeFromBuffer(buffer);
       if (!detectedType || !['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(detectedType.mime)) {
         return res.status(415).send({ message: 'The uploaded file is not a supported image.' });
