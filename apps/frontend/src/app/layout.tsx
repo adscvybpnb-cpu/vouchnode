@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Providers } from './providers'; // We'll create this to wrap client providers
 import { APP_NAME, APP_URL } from '@/lib/constants';
+import { FirstDepositBonusPromotion } from '@/components/site/FirstDepositBonusPromotion';
 
 export const metadata: Metadata = {
   title: {
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" translate="no" className="notranslate dark" suppressHydrationWarning>
       <body translate="no" className="notranslate flex min-h-screen min-w-0 flex-col overflow-x-hidden bg-background font-sans text-foreground antialiased" suppressHydrationWarning>
         <Providers>
+          <FirstDepositBonusPromotion />
           <div className="min-w-0 flex-grow overflow-x-hidden">{children}</div>
         </Providers>
       </body>

@@ -11,19 +11,11 @@ export function qualifiesForFirstDepositBonus(depositUsdValue: Prisma.Decimal) {
 
 export class FirstDepositBonusService {
   static async isEligible(userId: string) {
-    const [existingBonus, completedWalletDeposit, confirmedLegacyDeposit] = await Promise.all([
-      prisma.firstDepositBonus.findUnique({ where: { userId }, select: { id: true } }),
-      prisma.depositSession.findFirst({
-        where: { userId, orderId: null, status: 'COMPLETED' },
-        select: { id: true },
-      }),
-      prisma.deposit.findFirst({
-        where: { status: 'CONFIRMED', wallet: { userId } },
-        select: { id: true },
-      }),
-    ]);
-
-    return !existingBonus && !completedWalletDeposit && !confirmedLegacyDeposit;
+    const claimedBonus = await prisma.firstDepositBonus.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+    return !claimedBonus;
   }
 
   static async grantForCompletedWalletDeposit(

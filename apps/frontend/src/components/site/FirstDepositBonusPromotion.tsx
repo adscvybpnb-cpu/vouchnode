@@ -1,34 +1,23 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { Gift, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { apiClient } from '@/services/api.client';
 import { hasUsableAccessToken, useAuthStore } from '@/store/auth.store';
 
-const DISMISSED_STORAGE_KEY = 'first-deposit-bonus-dismissed';
-
 export function FirstDepositBonusPromotion() {
-  const { accessToken, hasHydrated, isAuthenticated } = useAuthStore();
+  const { accessToken, hasHydrated, isAuthenticated, user } = useAuthStore();
   const hasSession = isAuthenticated && hasUsableAccessToken(accessToken);
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     if (!hasHydrated) return;
 
-    try {
-      if (window.sessionStorage.getItem(DISMISSED_STORAGE_KEY) === 'true') return;
-    } catch (error) {
-      console.error('Unable to read first-deposit promotion dismissal state', error);
-    }
-
-    if (!isAuthenticated) {
-      setIsOpen(true);
-      return;
-    }
     if (!hasSession) {
-      setIsOpen(false);
+      setIsOpen(true);
       return;
     }
 
@@ -52,14 +41,9 @@ export function FirstDepositBonusPromotion() {
     return () => {
       active = false;
     };
-  }, [hasHydrated, hasSession, isAuthenticated]);
+  }, [hasHydrated, hasSession, user?.id]);
 
   const dismiss = () => {
-    try {
-      window.sessionStorage.setItem(DISMISSED_STORAGE_KEY, 'true');
-    } catch (error) {
-      console.error('Unable to save first-deposit promotion dismissal state', error);
-    }
     setIsOpen(false);
   };
 
@@ -74,9 +58,27 @@ export function FirstDepositBonusPromotion() {
       <DialogContent className="w-[calc(100%-2rem)] max-w-md overflow-hidden rounded-3xl border border-indigo-300/20 bg-[#10111b] p-0 text-white shadow-2xl shadow-indigo-950/60 sm:rounded-3xl">
         <div className="relative overflow-hidden px-6 pb-6 pt-8 sm:px-8 sm:pb-8">
           <div className="pointer-events-none absolute -right-14 -top-20 h-52 w-52 rounded-full bg-indigo-500/20 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-20 -left-14 h-48 w-48 rounded-full bg-cyan-500/10 blur-3xl" />
           <div className="relative">
-            <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-indigo-300/20 bg-indigo-500/15 text-indigo-200">
-              <Gift className="h-7 w-7" aria-hidden="true" />
+            <div className="mb-5 flex items-center justify-between gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-indigo-300/20 bg-indigo-500/15 text-indigo-200">
+                <Gift className="h-7 w-7" aria-hidden="true" />
+              </div>
+              <div className="flex items-center gap-2.5 pr-8" aria-label="BNB, Solana, and Tether supported">
+                {[
+                  { name: 'BNB', src: '/icons/crypto/bnb.svg', glow: 'shadow-yellow-400/30' },
+                  { name: 'Solana', src: '/icons/crypto/sol.svg', glow: 'shadow-violet-400/30' },
+                  { name: 'Tether', src: '/icons/crypto/usdt.svg', glow: 'shadow-emerald-400/30' },
+                ].map((asset) => (
+                  <div
+                    key={asset.name}
+                    className={`flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] shadow-lg ${asset.glow}`}
+                    title={asset.name}
+                  >
+                    <Image src={asset.src} alt={asset.name} width={28} height={28} unoptimized />
+                  </div>
+                ))}
+              </div>
             </div>
             <DialogTitle className="max-w-sm text-left text-2xl font-extrabold leading-tight tracking-tight sm:text-3xl">
               Get $10 Free on Your First Deposit!
