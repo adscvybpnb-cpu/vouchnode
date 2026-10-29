@@ -126,6 +126,7 @@ export default function HomePageContent({
   const [isStartingSellerFlow, setIsStartingSellerFlow] = useState(false);
   const [activeCategory, setActiveCategory] = useState('All');
   const [featuredProducts, setFeaturedProducts] = useState(initialFeaturedProducts);
+  const [newArrivals, setNewArrivals] = useState(initialFeaturedProducts.slice(0, 16));
   const [carouselPaused, setCarouselPaused] = useState(false);
   const carouselRef = useRef<HTMLDivElement>(null);
   const featuredRequestSequence = useRef(0);
@@ -134,15 +135,21 @@ export default function HomePageContent({
     const requestSequence = ++featuredRequestSequence.current;
     try {
       const categorySlug = categorySlugs[activeCategory];
-      const products = categorySlug
-        ? (await productService.getProducts({
-          category: categorySlug,
-          limit: 48,
-          sortBy: 'createdAt',
-          sortOrder: 'desc',
-        })).data
-        : await productService.getNewArrivals(48);
-      if (requestSequence === featuredRequestSequence.current) setFeaturedProducts(products);
+      const [products, latestProducts] = await Promise.all([
+        categorySlug
+          ? productService.getProducts({
+            category: categorySlug,
+            limit: 48,
+            sortBy: 'createdAt',
+            sortOrder: 'desc',
+          }).then((result) => result.data)
+          : productService.getNewArrivals(48),
+        categorySlug ? productService.getNewArrivals(16) : Promise.resolve(null),
+      ]);
+      if (requestSequence === featuredRequestSequence.current) {
+        setFeaturedProducts(products);
+        setNewArrivals((latestProducts ?? products).slice(0, 16));
+      }
     } catch (error) {
       console.error('Unable to refresh latest homepage listings:', error);
     }
@@ -287,10 +294,10 @@ export default function HomePageContent({
                 </button>
                 <div className="flex flex-col items-start gap-2">
                   <span className="rounded-full border border-emerald-300/40 bg-emerald-300/15 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-100 shadow-[0_0_24px_rgba(52,211,153,0.2)]">
-                    Earn on eligible purchases
+                    Earn up to 1% on eligible purchases
                   </span>
                   <Link href="/referrals" className="inline-flex items-center gap-2.5 rounded-xl border border-emerald-300/50 bg-emerald-400/15 px-6 py-3.5 text-base font-bold text-emerald-50 shadow-[0_0_30px_rgba(52,211,153,0.18)] transition hover:border-emerald-200/80 hover:bg-emerald-400/25 hover:shadow-[0_0_36px_rgba(52,211,153,0.3)]">
-                    <Gift className="h-5 w-5 text-emerald-200" /> Refer &amp; Earn <ArrowUpRight className="h-5 w-5" />
+                    <Gift className="h-5 w-5 text-emerald-200" /> Refer &amp; Earn up to 1% <ArrowUpRight className="h-5 w-5" />
                   </Link>
                 </div>
               </div>
@@ -314,6 +321,35 @@ export default function HomePageContent({
             </Link>
           ))}
         </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
+        <div className="mb-6 flex items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300">Fresh from the marketplace</p>
+            <h2 className="mt-2 bg-gradient-to-r from-white via-emerald-100 to-cyan-200 bg-clip-text text-3xl font-black tracking-tight text-transparent">
+              New Arrivals
+            </h2>
+          </div>
+          <Link href="/products?sortBy=createdAt&sortOrder=desc" className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-slate-400 transition hover:text-white">
+            View all <ChevronRight className="h-4 w-4" />
+          </Link>
+        </div>
+        {newArrivals.length > 0 ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+            {newArrivals.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                onBuyNow={(selectedProduct) => { window.location.href = `/products/${selectedProduct.slug}`; }}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-2xl border border-white/10 bg-[#0d121a] p-8 text-center text-sm text-slate-400">
+            {initialDataReady ? 'New listings will appear here as they become available.' : 'Latest listings are temporarily unavailable.'}
+          </p>
+        )}
       </section>
 
       <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
