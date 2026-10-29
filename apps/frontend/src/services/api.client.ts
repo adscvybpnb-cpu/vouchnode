@@ -5,6 +5,8 @@ const resolveApiUrl = (endpoint: string, prefix: string) => {
   return `${API_URL}${prefix}/${endpoint.replace(/^\/+/, '')}`;
 };
 
+const API_REQUEST_TIMEOUT_MS = 20_000;
+
 export interface ApiResponse<T = any> {
   data: T | null;
   error: string | null;
@@ -69,7 +71,7 @@ async function getAccessToken(): Promise<string | null> {
   return null;
 }
 
-async function refreshAccessToken(): Promise<string | null> {
+async function refreshAccessToken(signal?: AbortSignal): Promise<string | null> {
   tokenRefresh ??= (async () => {
     try {
       const response = await fetch(resolveApiUrl('/auth/refresh', ''), {
@@ -77,6 +79,7 @@ async function refreshAccessToken(): Promise<string | null> {
         headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({}),
+        signal,
       });
       const payload: unknown = await response.json();
       if (!response.ok || !payload || typeof payload !== 'object') return null;
@@ -115,11 +118,16 @@ class ApiClient {
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
     const url = resolveApiUrl(endpoint, this.prefix);
+    const controller = new AbortController();
+    const onAbort = () => controller.abort(options.signal?.reason);
+    if (options.signal?.aborted) onAbort();
+    else options.signal?.addEventListener('abort', onAbort, { once: true });
+    const timeout = setTimeout(() => controller.abort(), API_REQUEST_TIMEOUT_MS);
     try {
       const sendRequest = async (token: string | null) => {
         const headers = new Headers(options.headers || {});
-        headers.set('Content-Type', 'application/json');
         headers.set('Accept', 'application/json');
+        if (options.body !== undefined) headers.set('Content-Type', 'application/json');
         if (token) headers.set('Authorization', `Bearer ${token}`);
         else headers.delete('Authorization');
 
@@ -127,11 +135,13 @@ class ApiClient {
           ...options,
           headers,
           credentials: 'include',
+          signal: controller.signal,
         });
         let body: any = null;
         try {
           body = await response.json();
-        } catch {
+        } catch (error) {
+          if (controller.signal.aborted) throw error;
           if (!response.ok) body = { message: response.statusText || 'API Request Failed' };
         }
         return { response, body };
@@ -144,7 +154,10 @@ class ApiClient {
         body?.error !== 'ACCOUNT_LOCKED' &&
         shouldRefreshAuthentication(this.prefix, endpoint)
       ) {
-        const refreshedToken = await refreshAccessToken();
+        const refreshedToken = await refreshAccessToken(controller.signal);
+        if (controller.signal.aborted) {
+          throw new DOMException('API request timed out', 'AbortError');
+        }
         if (refreshedToken) {
           token = refreshedToken;
           ({ response, body } = await sendRequest(token));
@@ -165,8 +178,21 @@ class ApiClient {
         ? (isPaginatedEnvelope(body) ? body : body?.data || body) as T
         : null;
       return { data, error, status: response.status };
-    } catch {
+    } catch (error) {
+      if (controller.signal.aborted) {
+        return {
+          data: null,
+          error: options.signal?.aborted
+            ? 'Request was cancelled.'
+            : 'The API request timed out. Please check your connection and try again.',
+          status: 0,
+        };
+      }
+      console.error('API request failed before receiving a response', { url, error });
       return { data: null, error: 'Cannot connect to backend API server', status: 0 };
+    } finally {
+      clearTimeout(timeout);
+      options.signal?.removeEventListener('abort', onAbort);
     }
   }
 

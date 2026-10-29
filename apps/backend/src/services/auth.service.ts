@@ -69,6 +69,7 @@ export class AuthService {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: form,
+        signal: AbortSignal.timeout(5_000),
       });
       if (!response.ok) {
         console.error('Turnstile verification request failed', { status: response.status });
@@ -208,8 +209,6 @@ export class AuthService {
       throw new Error('Invalid credentials');
     }
 
-    await this.resetFailedLogin(user.id);
-
     const refreshToken = uuidv4();
 
     // Parse refresh token expiry correctly — config value is e.g. "30d", "7d", "1440m"
@@ -229,7 +228,13 @@ export class AuthService {
       });
       await tx.user.update({
         where: { id: user.id },
-        data: { lastLoginAt: new Date(), lastLoginIp: ipAddress, isOnline: true }
+        data: {
+          failedLoginAttempts: 0,
+          lockedUntil: null,
+          lastLoginAt: new Date(),
+          lastLoginIp: ipAddress,
+          isOnline: true,
+        }
       });
       return createdSession;
     });

@@ -189,6 +189,17 @@ describe('AuthService', () => {
     expect(mocks.sessionCreate).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ userId: user.id, ipAddress: '127.0.0.1', userAgent: 'test-agent' }),
     }));
+    expect(mocks.userUpdate).toHaveBeenCalledOnce();
+    expect(mocks.userUpdate).toHaveBeenCalledWith({
+      where: { id: user.id },
+      data: expect.objectContaining({
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+        lastLoginAt: expect.any(Date),
+        lastLoginIp: '127.0.0.1',
+        isOnline: true,
+      }),
+    });
     expect(tokenSpy).toHaveBeenCalledWith(user, 'login-session');
   });
 

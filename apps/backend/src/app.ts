@@ -64,6 +64,8 @@ export const buildApp = async () => {
     genReqId: () => uuidv4(),
     bodyLimit: 50 * 1024 * 1024
   });
+  app.server.keepAliveTimeout = 72_000;
+  app.server.headersTimeout = 75_000;
   app.addContentTypeParser('application/json', { parseAs: 'buffer' }, (request: any, body: Buffer, done) => {
     request.rawBody = body.toString('utf8');
     try {
