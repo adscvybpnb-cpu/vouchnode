@@ -66,8 +66,6 @@ const regions = [
   'Western Sahara', 'Yemen', 'Zambia', 'Zimbabwe',
 ] as const;
 
-const ADMIN_FEE = 0;
-
 export default function CreateListingPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -90,7 +88,7 @@ export default function CreateListingPage() {
   const [customTemplate, setCustomTemplate] = useState(false);
   const faceValueAmount = Number(faceValue) || 0;
   const retailPriceAmount = Number(price) || 0;
-  const earningsAmount = retailPriceAmount * (1 - ADMIN_FEE);
+  const earningsAmount = retailPriceAmount;
   const discountPercentage = faceValueAmount > 0 && retailPriceAmount < faceValueAmount
     ? Math.round(((faceValueAmount - retailPriceAmount) / faceValueAmount) * 100)
     : 0;
@@ -251,7 +249,7 @@ export default function CreateListingPage() {
         <div className="grid gap-6 sm:grid-cols-3">
           <label className="space-y-2"><span className="text-sm font-medium">Face value (USD)</span><Input value={faceValue} readOnly className="border-indigo-400/30 bg-indigo-500/10 text-indigo-100" /></label>
           <label className="space-y-2"><span className="text-sm font-medium">Listing price (USDT)</span><Input type="number" min="0.01" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Set retail price" /></label>
-          <label className="space-y-2"><span className="text-sm font-medium">You Receive (0% fee)</span><Input value={retailPriceAmount ? earningsAmount.toFixed(2) : ''} readOnly disabled className="border-emerald-400/40 bg-emerald-500/10 font-semibold text-emerald-200 disabled:opacity-100" /></label>
+          <label className="space-y-2"><span className="text-sm font-medium">Gross sale amount (before applicable fees)</span><Input value={retailPriceAmount ? earningsAmount.toFixed(2) : ''} readOnly disabled className="border-emerald-400/40 bg-emerald-500/10 font-semibold text-emerald-200 disabled:opacity-100" /></label>
         </div>
         {discountPercentage > 0 && <p className="text-sm font-semibold text-emerald-300">{discountPercentage}% discount from face value</p>}
         {formError && <p role="alert" className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">{formError}</p>}

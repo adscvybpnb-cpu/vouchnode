@@ -61,8 +61,23 @@ export default function HelpCenterPage() {
             </ol>
           </GuideSection>
 
-          <GuideSection id="p2p" title="3. Complete an Auto-P2P or P2P trade">
+          <GuideSection id="p2p" title="3. Trade in the P2P Market">
+            <p>
+              The P2P Market connects buyers and sellers through offer-based trades. For eligible trades,
+              the platform reserves funds in its internal wallet ledger while the trade is in progress;
+              this is platform-managed escrow, not a non-custodial external smart contract. Applicable
+              fees and settlement details are shown in the product flow and can vary by offer or platform
+              settings.
+            </p>
+            <p>
+              To publish an automated BUY offer and receive matching orders, complete seller onboarding,
+              open the P2P module, and ensure your available wallet balance meets the offer’s displayed
+              funding requirements. Automated processing depends on offer eligibility, available funds,
+              and the current trade status; review the in-product instructions before trading.
+            </p>
             <ol className="list-decimal space-y-2 pl-5">
+              <li>Creating a P2P offer requires an approved seller account. In the P2P module, choose whether your offer is a BUY or SELL offer and provide the supported asset, gift-card type, rate, limits, and terms.</li>
+              <li>A BUY offer can be created only when the merchant’s available wallet balance covers its minimum quoted trade amount. Balance availability can change before a trade, so keep sufficient funds available; reserved, pending, or otherwise unavailable funds do not count.</li>
               <li>Review the offer carefully, including the payment method, supported gift card, rate, limits, deadline, and merchant terms.</li>
               <li>Open the offer to create a trade. Use only the payment method and instructions shown in that trade. Do not accept requests to move the trade to an external chat or change the recipient outside the recorded order.</li>
               <li>Follow the on-screen payment or gift-card submission steps. Keep original receipts and unedited evidence. Never submit a code or make a payment before checking the trade state and instructions.</li>
@@ -73,11 +88,13 @@ export default function HelpCenterPage() {
 
           <GuideSection id="selling" title="4. Sell products or create a P2P offer">
             <ol className="list-decimal space-y-2 pl-5">
-              <li>Complete seller onboarding and any approval or verification steps shown in your account.</li>
-              <li>Create an accurate listing or offer. State the correct product, region, denomination, delivery method, limits, payment methods, and response expectations.</li>
+              <li>Register, complete seller onboarding, and finish any approval or verification steps shown in your account. You must have an approved seller account before creating a listing or P2P offer.</li>
+              <li>For a traditional marketplace listing, select Start Selling, create the listing, set its price, and enter an accurate description, target country or region, and digital gift code. Add the required product details and images, then publish. Listings appear in public marketplace surfaces when published and active; placement on the homepage is not guaranteed.</li>
+              <li>For a P2P offer, select the offer side and provide the supported asset, gift-card type, exchange rate, trade limits, and terms. A BUY offer requires enough available wallet balance to cover its minimum quoted trade amount.</li>
               <li>For each order, use the order workspace to deliver the product or respond to the buyer. Keep proof of acquisition, delivery, and communication.</li>
               <li>Do not deliver invalid, redeemed, stolen, restricted, or misrepresented codes or assets. Do not ask buyers to mark an order complete before delivery.</li>
-              <li>Funds remain subject to the displayed order, escrow, dispute, and withdrawal states. Check your wallet history for available, pending, and reserved balances.</li>
+              <li>Marketplace orders may include a configurable platform fee, which is deducted when calculating seller proceeds. Review the applicable fee and payout shown for the transaction; P2P offer terms and fees may differ.</li>
+              <li>Funds remain subject to the displayed order, escrow, dispute, and withdrawal states. Wallet balances are maintained through the platform’s wallet ledger, not user-controlled external smart contracts. Check your wallet history for available, pending, and reserved balances.</li>
             </ol>
           </GuideSection>
 

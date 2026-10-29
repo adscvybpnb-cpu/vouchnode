@@ -10,6 +10,10 @@ import { isTestPaymentSimulationAuthorized } from '../middleware/test-payment-si
 import { FirstDepositBonusService } from '../services/first-deposit-bonus.service';
 import { TelegramBotService } from '../integrations/telegram/telegram.bot';
 import { prisma } from '../lib/prisma';
+import { UserService } from '../services/user.service';
+import { createStorageProvider } from '../integrations/storage/storage.provider';
+import { fileTypeFromBuffer } from 'file-type';
+import { randomUUID } from 'node:crypto';
 
 const depositSessionSchema = z.object({
   currency: z.string().trim().min(2).max(10).transform((value) => value.toUpperCase()),
@@ -24,9 +28,89 @@ const simulatedPaymentSchema = z.object({
   amount: z.number().finite().positive(),
   transactionHash: z.string().trim().min(6).max(200)
 });
+const profileUpdateSchema = z.object({
+  username: z.string().trim().min(3).max(30).regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain alphanumeric characters and underscores').optional(),
+  displayName: z.string().trim().min(1).max(100).optional(),
+  bio: z.string().max(500).nullable().optional(),
+  countryCode: z.string().max(10).nullable().optional(),
+  timezone: z.string().max(100).nullable().optional(),
+  language: z.string().max(20).nullable().optional(),
+  twitterUrl: z.string().url().nullable().optional(),
+  linkedinUrl: z.string().url().nullable().optional(),
+  githubUrl: z.string().url().nullable().optional(),
+  websiteUrl: z.string().url().nullable().optional(),
+}).strict();
 
 export default async function walletRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authenticate);
+
+  app.patch('/profile', async (req: any, res) => {
+    const parsed = profileUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).send({ message: parsed.error.issues[0]?.message || 'Invalid profile details.' });
+    }
+    try {
+      return res.send({ data: await UserService.updateProfile(req.user.id, parsed.data) });
+    } catch (error) {
+      const statusCode = error && typeof error === 'object' && 'statusCode' in error &&
+        typeof error.statusCode === 'number'
+        ? error.statusCode
+        : 500;
+      req.log.error({ error, userId: req.user.id }, 'Unable to update user profile');
+      return res.status(statusCode).send({
+        message: error instanceof Error ? error.message : 'Unable to update user profile.',
+      });
+    }
+  });
+
+  app.post('/profile/avatar', async (req: any, res) => {
+    if (!String(req.headers['content-type'] || '').startsWith('multipart/form-data')) {
+      return res.status(415).send({ message: 'A multipart image upload is required.' });
+    }
+    try {
+      const part = await req.file();
+      if (!part || part.fieldname !== 'avatar') {
+        return res.status(400).send({ message: 'An avatar image is required.' });
+      }
+      if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(part.mimetype)) {
+        return res.status(415).send({ message: 'Use a JPEG, PNG, WebP, or GIF image.' });
+      }
+      const buffer = await part.toBuffer();
+      if (buffer.length > 5 * 1024 * 1024) {
+        return res.status(413).send({ message: 'Image must be under 5MB.' });
+      }
+      const detectedType = await fileTypeFromBuffer(buffer);
+      if (!detectedType || !['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(detectedType.mime)) {
+        return res.status(415).send({ message: 'The uploaded file is not a supported image.' });
+      }
+      const extension = detectedType.ext === 'jpeg' ? 'jpg' : detectedType.ext;
+      const storage = createStorageProvider(
+        config.storage.provider,
+        config.storage.local.path,
+        '/uploads',
+        config.storage.s3,
+        config.storage.cloudinary,
+      );
+      const uploaded = await storage.upload(
+        buffer,
+        `avatars/${req.user.id}`,
+        `${Date.now()}-${randomUUID()}.${extension}`,
+      );
+      await UserService.uploadAvatar(req.user.id, uploaded.url);
+      return res.send({ data: { avatarUrl: uploaded.url } });
+    } catch (error) {
+      req.log.error({ error, userId: req.user.id }, 'Profile avatar upload failed');
+      const statusCode = error && typeof error === 'object' && 'statusCode' in error &&
+        typeof error.statusCode === 'number'
+        ? error.statusCode
+        : error && typeof error === 'object' && 'code' in error && error.code === 'FST_REQ_FILE_TOO_LARGE'
+          ? 413
+          : 503;
+      return res.status(statusCode).send({
+        message: error instanceof Error ? error.message : 'Profile picture upload is temporarily unavailable.',
+      });
+    }
+  });
 
   app.get('/me/telegram/status', async (req: any, res) => {
     const user = await prisma.user.findUnique({

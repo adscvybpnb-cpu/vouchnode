@@ -251,8 +251,8 @@ export default function ProfilePage() {
       setAvatarLoadFailed(false);
       setMessage('Profile picture updated successfully.');
       cancelAvatarCrop();
-    } catch {
-      setError('We could not upload your profile picture. Please try again.');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'We could not upload your profile picture. Please try again.');
     } finally {
       avatarUploadInFlight.current = false;
       if (isMounted.current) setIsUploadingAvatar(false);
@@ -268,6 +268,7 @@ export default function ProfilePage() {
     try {
       const updateData: any = {
         displayName: profile.displayName.trim(),
+        username: profile.username.trim(),
         bio: profile.bio.trim() || null,
         countryCode: profile.countryCode.trim() || null,
         timezone: profile.timezone.trim() || null,
@@ -280,18 +281,7 @@ export default function ProfilePage() {
 
       const response = await apiClient.patch('/users/profile', updateData);
       if (response.error) throw new Error(response.error);
-
-      if (avatarPreview && !avatarPreview.startsWith('blob:') && !avatarPreview.startsWith('http')) {
-        updateData.avatarUrl = avatarPreview;
-      }
-
-      const finalResponse = await apiClient.patch('/users/profile', {
-        ...updateData,
-        avatarUrl: avatarPreview && !avatarPreview.startsWith('blob:') ? avatarPreview : undefined,
-      });
-
-      if (finalResponse.error) throw new Error(finalResponse.error);
-      if (finalResponse.data) updateUser(finalResponse.data as Partial<User>);
+      if (response.data) updateUser(response.data as Partial<User>);
       setMessage('Profile changes saved successfully.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to save profile changes.');
@@ -460,11 +450,13 @@ export default function ProfilePage() {
                 <Input
                   id="username"
                   value={profile.username}
-                  readOnly
-                  disabled
-                  className="cursor-not-allowed opacity-60"
+                  onChange={(e) => updateProfileField('username', e.target.value)}
+                  minLength={3}
+                  maxLength={30}
+                  pattern="[a-zA-Z0-9_]+"
+                  required
                 />
-                <p className="text-xs text-slate-500">Username changes are handled by support.</p>
+                <p className="text-xs text-slate-500">You can change your username once every 8 days.</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email Address</Label>

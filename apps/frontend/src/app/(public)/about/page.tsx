@@ -83,6 +83,145 @@ export default function AboutPage() {
           </p>
         </header>
 
+        <section aria-label="VouchNodes history and platform architecture" className="mt-12 space-y-8">
+          <section className="rounded-2xl border border-white/10 bg-[#12141d] p-6 sm:p-8">
+            <h2 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
+              1. Origins and marketplace foundations
+            </h2>
+            <div className="mt-4 space-y-4 text-sm leading-7 text-slate-300 sm:text-base">
+              <p>
+                VouchNodes traces its marketplace history to 2018, with a focus on making digital products
+                and value easier to access. The platform has developed into a marketplace for gift cards,
+                gaming products, subscriptions, and crypto-related services. Product availability and
+                transaction features have evolved over time and may vary by region and listing.
+              </p>
+              <p>
+                That development is guided by practical needs: clear product information, understandable
+                checkout steps, and a place for buyers and sellers to manage an eligible transaction. Rather
+                than promise that every transaction is instant or risk-free, VouchNodes presents the applicable
+                delivery method, order state, and available actions in the product and transaction experience.
+              </p>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-white/10 bg-[#12141d] p-6 sm:p-8">
+            <h2 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
+              2. A marketplace built around connected workflows
+            </h2>
+            <div className="mt-4 space-y-4 text-sm leading-7 text-slate-300 sm:text-base">
+              <p>
+                VouchNodes brings together storefront listings, buyer and seller accounts, order workflows,
+                wallet features, and support tools. These connected services help users discover digital goods
+                and follow the steps relevant to a purchase, sale, or supported asset transaction.
+              </p>
+              <p>
+                The platform continues to develop its transaction and settlement workflows as product
+                categories and supported networks change. Not every listing uses the same fulfillment process:
+                delivery can be instant or manual, and supported assets, networks, regions, and payment routes
+                are those shown in the current product and checkout interfaces.
+              </p>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-white/10 bg-[#12141d] p-6 sm:p-8">
+            <h2 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
+              3. Transaction security and escrow
+            </h2>
+            <div className="mt-4 space-y-4 text-sm leading-7 text-slate-300 sm:text-base">
+              <p>
+                Account, wallet, and transaction controls are designed to support safer marketplace
+                interactions. For eligible trades, the platform may reserve the relevant crypto balance in its
+                internal ledger while the order is active. Release follows the transaction state and applicable
+                confirmation, timeout, or dispute process described in the order.
+              </p>
+              <p>
+                This is a platform-operated escrow process; it should not be mistaken for a user-controlled
+                smart contract or a promise that funds are held in a separate multi-signature cold-storage
+                arrangement. Escrow can reduce some counterparty risks, but it cannot guarantee performance,
+                recover every loss, prevent every attack, or establish that a gift card is valid. Review the
+                order details and{' '}
+                <Link href="/terms" className="text-indigo-300 hover:underline">
+                  Terms of Service
+                </Link>{' '}
+                before you trade.
+              </p>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-white/10 bg-[#12141d] p-6 sm:p-8">
+            <h2 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
+              4. Digital assets and practical utility
+            </h2>
+            <div className="mt-4 space-y-4 text-sm leading-7 text-slate-300 sm:text-base">
+              <p>
+                Digital assets can connect online communities with products and services. VouchNodes supports
+                the assets and network combinations currently shown in its wallet and checkout flows. Supported
+                combinations can change, so users should always select the exact asset and network presented
+                for their transaction.
+              </p>
+              <p>
+                Dogecoin, Shiba Inu, Pepe, Floki, and Bonk are examples of community-driven tokens people may
+                research for digital-asset utility; they are not represented here as currently supported
+                payment assets. Likewise, a gift card or product can only be purchased with methods actually
+                offered for that transaction. Check the live listing and checkout rather than relying on a
+                general token-acceptance claim.
+              </p>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-white/10 bg-[#12141d] p-6 sm:p-8">
+            <h2 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
+              5. Evolving products, delivery, and transparency
+            </h2>
+            <div className="mt-4 space-y-4 text-sm leading-7 text-slate-300 sm:text-base">
+              <p>
+                The marketplace brings together digital gift cards, gaming products, subscriptions, and
+                peer-to-peer offers, with availability determined by current listings and platform features.
+                Some products may be delivered automatically; others require seller action. Delivery timing
+                depends on the item, transaction status, and any checks that apply.
+              </p>
+              <p>
+                Transaction and wallet records help users review activity and status in-product. VouchNodes
+                aims to make these workflows clearer while respecting applicable account, verification,
+                operational, and legal requirements. No marketplace can promise absolute anonymity, zero
+                fraud, uninterrupted service, or risk-free transactions; users should protect their account
+                credentials and verify the details of each transaction.
+              </p>
+            </div>
+          </section>
+        </section>
+
+        <section
+          aria-labelledby="referral-program"
+          className="mt-12 overflow-hidden rounded-3xl border border-emerald-300/20 bg-[radial-gradient(circle_at_85%_15%,rgba(16,185,129,0.14),transparent_35%),#12141d] p-6 sm:p-8"
+        >
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-300">
+            VouchNodes referral program
+          </p>
+          <h2 id="referral-program" className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            Share VouchNodes. Earn on eligible purchases.
+          </h2>
+          <div className="mt-4 max-w-4xl space-y-4 text-sm leading-7 text-slate-300 sm:text-base">
+            <p>
+              Creators, crypto communities, and marketers can invite new customers to explore VouchNodes
+              using a personal referral link. When an attributed customer completes an eligible marketplace
+              purchase, the referrer may receive a commission under the current referral policy. This gives
+              publishers a straightforward way to introduce their audiences to digital gift cards, gaming
+              products, and other marketplace listings.
+            </p>
+            <p>
+              Referral commissions are not a guaranteed income or a 50% revenue share. The current standard
+              policy calculates commission at 1% of eligible completed order value, capped at 20% of the
+              platform fee for that order; settings and eligibility may change. The final amount depends on
+              the completed transaction and applicable policy. Sign in and visit{' '}
+              <Link href="/referrals" className="font-semibold text-emerald-200 underline decoration-emerald-300/40 underline-offset-4 hover:text-emerald-100">
+                Referrals
+              </Link>{' '}
+              to create and share your link and review your recorded results.
+            </p>
+          </div>
+        </section>
+
         <section
           aria-labelledby="marketplace-search-index"
           className="mt-16 border-t border-white/10 pt-10"

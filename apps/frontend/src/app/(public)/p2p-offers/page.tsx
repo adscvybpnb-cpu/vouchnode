@@ -416,7 +416,7 @@ export default function P2POffersPage() {
         <div className="mb-8 flex flex-wrap items-end justify-between gap-5">
           <div>
             <p className="text-sm font-medium text-emerald-300">Fast, protected trading</p>
-            <h1 className="mt-2 text-4xl font-black tracking-tight">Quick P2P Exchange</h1>
+            <h1 className="mt-2 text-4xl font-black tracking-tight">P2P Market</h1>
             <p className="mt-3 max-w-2xl text-slate-400">Trade crypto with verified merchants using gift cards.</p>
           </div>
           <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">

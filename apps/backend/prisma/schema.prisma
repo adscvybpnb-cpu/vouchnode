@@ -148,6 +148,7 @@ model UserProfile {
   userId                String   @unique
   displayName           String
   username              String   @unique
+  usernameChangedAt     DateTime?
   avatarUrl             String?
   bio                   String?
   countryCode           String?

@@ -20,9 +20,15 @@ export const APP_URL = isProduction
   ? (isPublicHttpsUrl(configuredAppUrl) ? configuredAppUrl : 'https://vouchnodes.com')
   : (configuredAppUrl || 'http://localhost:3000');
 const productionApiUrl = 'https://api.vouchnodes.com/api/v1';
+const candidateApiUrl = process.env.NEXT_PUBLIC_API_URL;
 const configuredApiUrl = isProduction
-  ? (isPublicHttpsUrl(process.env.NEXT_PUBLIC_API_URL) ? process.env.NEXT_PUBLIC_API_URL : productionApiUrl)
-  : (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000/api/v1');
+  ? (
+    isPublicHttpsUrl(candidateApiUrl) &&
+    (!isPublicHttpsUrl(APP_URL) || new URL(candidateApiUrl).origin !== new URL(APP_URL).origin)
+      ? candidateApiUrl
+      : productionApiUrl
+  )
+  : (candidateApiUrl || 'http://127.0.0.1:4000/api/v1');
 const normalizedApiUrl = configuredApiUrl.replace(/\/+$/, '');
 export const API_URL = /\/api\/v1$/i.test(normalizedApiUrl)
   ? normalizedApiUrl

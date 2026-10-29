@@ -51,7 +51,7 @@ const services = [
   },
   {
     title: 'Secure Wallet',
-    description: 'Send and receive secure crypto assets protected by our non-custodial escrow.',
+    description: 'Manage supported crypto balances and eligible trades with platform-operated wallet and escrow workflows.',
     icon: WalletCards,
     accent: 'from-violet-400/20 to-indigo-400/5',
     iconClass: 'text-violet-300',
@@ -238,7 +238,7 @@ export default function HomePageContent({
           </div>
           <div translate="no" className="notranslate flex flex-wrap items-center gap-2">
             <Link href="/p2p-offers" prefetch={true} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-300 to-cyan-300 px-4 py-2.5 text-sm font-bold text-slate-950 shadow-lg shadow-emerald-500/10 transition hover:-translate-y-0.5 hover:from-emerald-200 hover:to-cyan-200">
-              <Zap className="h-4 w-4 fill-current" /> Quick P2P Exchange
+              <Zap className="h-4 w-4 fill-current" /> P2P Market
             </Link>
             <Link href="/products?delivery=INSTANT" prefetch={true} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-slate-100 transition hover:border-indigo-400/40 hover:bg-indigo-500/10">
               <ArrowUpRight className="h-4 w-4 text-indigo-300" /> Instant Buy/Sell
@@ -279,15 +279,18 @@ export default function HomePageContent({
                 <Link href="/products" prefetch={true} className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-emerald-100">
                   Explore marketplace <ArrowUpRight className="h-4 w-4" />
                 </Link>
+                <Link href="/p2p-offers" prefetch={true} className="inline-flex items-center gap-2 rounded-xl border border-emerald-300/50 bg-gradient-to-r from-emerald-300/20 to-cyan-300/20 px-6 py-3.5 text-base font-bold text-emerald-50 shadow-[0_0_30px_rgba(52,211,153,0.2)] transition hover:-translate-y-0.5 hover:border-emerald-200/80 hover:from-emerald-300/30 hover:to-cyan-300/30 hover:shadow-[0_0_38px_rgba(52,211,153,0.3)]">
+                  <Zap className="h-5 w-5 fill-current text-emerald-200" /> P2P Market <ArrowUpRight className="h-5 w-5" />
+                </Link>
                 <button type="button" onClick={() => void handleStartSelling()} disabled={isStartingSellerFlow} className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:border-indigo-400/50 hover:bg-indigo-500/10 disabled:cursor-wait disabled:opacity-60">
                   <Plus className="h-4 w-4 text-indigo-300" /> {isStartingSellerFlow ? 'Checking seller status...' : 'Become a seller'}
                 </button>
-                <div className="flex flex-col items-start gap-1.5">
-                  <span className="rounded-full border border-emerald-300/25 bg-emerald-300/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-200">
-                    Earn up to 20% per purchase
+                <div className="flex flex-col items-start gap-2">
+                  <span className="rounded-full border border-emerald-300/40 bg-emerald-300/15 px-4 py-2 text-xs font-extrabold uppercase tracking-[0.12em] text-emerald-100 shadow-[0_0_24px_rgba(52,211,153,0.2)]">
+                    Earn on eligible purchases
                   </span>
-                  <Link href="/referrals" className="inline-flex items-center gap-2 rounded-xl border border-emerald-300/30 bg-emerald-400/10 px-5 py-3 text-sm font-semibold text-emerald-100 transition hover:border-emerald-200/60 hover:bg-emerald-400/20">
-                    <Gift className="h-4 w-4 text-emerald-300" /> Refer &amp; Earn <ArrowUpRight className="h-4 w-4" />
+                  <Link href="/referrals" className="inline-flex items-center gap-2.5 rounded-xl border border-emerald-300/50 bg-emerald-400/15 px-6 py-3.5 text-base font-bold text-emerald-50 shadow-[0_0_30px_rgba(52,211,153,0.18)] transition hover:border-emerald-200/80 hover:bg-emerald-400/25 hover:shadow-[0_0_36px_rgba(52,211,153,0.3)]">
+                    <Gift className="h-5 w-5 text-emerald-200" /> Refer &amp; Earn <ArrowUpRight className="h-5 w-5" />
                   </Link>
                 </div>
               </div>

@@ -1,6 +1,8 @@
 import { prisma } from '../lib/prisma';
 import { randomUUID } from 'node:crypto';
 
+const USERNAME_CHANGE_COOLDOWN_MS = 8 * 24 * 60 * 60 * 1000;
+
 export class UserService {
   static async getMe(userId: string) {
     const user = await prisma.user.findUnique({
@@ -58,12 +60,75 @@ export class UserService {
     };
   }
 
-  static async updateProfile(userId: string, data: { displayName?: string; bio?: string; countryCode?: string; timezone?: string; language?: string; twitterUrl?: string; linkedinUrl?: string; githubUrl?: string; websiteUrl?: string }) {
-    const profile = await prisma.userProfile.update({
-      where: { userId },
-      data
-    });
-    return profile;
+  static async updateProfile(
+    userId: string,
+    data: {
+      username?: string;
+      displayName?: string;
+      bio?: string | null;
+      countryCode?: string | null;
+      timezone?: string | null;
+      language?: string | null;
+      twitterUrl?: string | null;
+      linkedinUrl?: string | null;
+      githubUrl?: string | null;
+      websiteUrl?: string | null;
+    },
+  ) {
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const profile = await tx.userProfile.findUnique({ where: { userId } });
+        if (!profile) throw Object.assign(new Error('User profile not found'), { statusCode: 404 });
+
+        const username = data.username?.trim();
+        const usernameChanged = username !== undefined && username !== profile.username;
+        if (usernameChanged) {
+          const nextAllowedChangeAt = profile.usernameChangedAt
+            ? profile.usernameChangedAt.getTime() + USERNAME_CHANGE_COOLDOWN_MS
+            : null;
+          if (nextAllowedChangeAt !== null && Date.now() < nextAllowedChangeAt) {
+            throw Object.assign(new Error('You can change your username once every 8 days.'), { statusCode: 429 });
+          }
+
+          const existingProfile = await tx.userProfile.findFirst({
+            where: { username: { equals: username, mode: 'insensitive' }, userId: { not: userId } },
+            select: { id: true },
+          });
+          if (existingProfile) {
+            throw Object.assign(new Error('Username is already in use'), { statusCode: 409 });
+          }
+        }
+
+        const { username: _username, ...profileData } = data;
+        if (usernameChanged) {
+          const result = await tx.userProfile.updateMany({
+            where: {
+              userId,
+              username: profile.username,
+              usernameChangedAt: profile.usernameChangedAt,
+            },
+            data: { ...profileData, username, usernameChangedAt: new Date() },
+          });
+          if (result.count !== 1) {
+            throw Object.assign(new Error('Profile changed while saving. Please try again.'), { statusCode: 409 });
+          }
+        } else if (Object.keys(profileData).length > 0) {
+          await tx.userProfile.update({ where: { userId }, data: profileData });
+        }
+
+        return tx.userProfile.findUniqueOrThrow({ where: { userId } });
+      });
+    } catch (error) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        error.code === 'P2002'
+      ) {
+        throw Object.assign(new Error('Username is already in use'), { statusCode: 409 });
+      }
+      throw error;
+    }
   }
 
   static async uploadAvatar(userId: string, avatarUrl: string) {
