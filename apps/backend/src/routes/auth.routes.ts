@@ -63,12 +63,9 @@ export default async function authRoutes(app: FastifyInstance) {
         return reply.status(400).send({ statusCode: 400, error: 'Validation Error', message });
       }
       const user = await AuthService.register(parsed.data);
-      try {
-        await createAuditLog({ actorId: user.id, actorType: 'USER', action: 'auth.register', ipAddress: request.ip });
-      } catch (error) {
-        request.log.error({ error, userId: user.id }, 'Registration succeeded but audit logging failed');
-      }
-      return reply.status(201).send({ message: 'Registration successful. Please check your email to verify your account.', user });
+      void createAuditLog({ actorId: user.id, actorType: 'USER', action: 'auth.register', ipAddress: request.ip })
+        .catch((error) => request.log.error({ error, userId: user.id }, 'Registration succeeded but audit logging failed'));
+      return reply.status(201).send({ message: 'Registration successful. Sign in to verify your account with Telegram.', user });
     } catch (err: any) {
       if (isDatabaseUnavailable(err)) {
         return reply.status(503).send({
@@ -117,11 +114,8 @@ export default async function authRoutes(app: FastifyInstance) {
         httpOnly: true, path: '/', secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax', maxAge: refreshCookieMaxAge
       });
-      try {
-        await createAuditLog({ actorId: result.user.id, actorType: 'USER', action: 'auth.login', ipAddress: request.ip });
-      } catch (error) {
-        request.log.error({ error, userId: result.user.id }, 'Login succeeded but audit logging failed');
-      }
+      void createAuditLog({ actorId: result.user.id, actorType: 'USER', action: 'auth.login', ipAddress: request.ip })
+        .catch((error) => request.log.error({ error, userId: result.user.id }, 'Login succeeded but audit logging failed'));
       return reply.send({ message: 'Login successful', accessToken: result.accessToken, user: result.user });
     } catch (err: any) {
       if (isDatabaseUnavailable(err)) {

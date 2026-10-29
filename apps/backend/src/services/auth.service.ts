@@ -9,9 +9,6 @@ import { UserRole } from '@vouchnode/shared';
 import { createEmailProvider } from '../integrations/email/email.provider';
 import { WalletRepository } from '../repositories/wallet.repository';
 import { INTERNAL_SUPPORTED_ASSET_CODES } from '../lib/internal-wallet';
-import { NotificationService } from './notification.service';
-import { logger } from '../lib/logger';
-import { WELCOME_EMAIL_SUBJECT } from '../integrations/email/email.templates';
 import { COUNTRY_CATALOG } from '../catalogs/countries';
 import { CURRENCY_CATALOG } from '../catalogs/currencies';
 import { ROLE_CATALOG } from '../catalogs/roles';
@@ -29,21 +26,32 @@ async function ensureAuthReferenceData(countryCode: string) {
     throw new Error(`Missing currency metadata for ${missingCurrencyMetadata.join(', ')}.`);
   }
 
+  const requiredCurrencyCodes = ['USD', ...INTERNAL_SUPPORTED_ASSET_CODES];
+  const [existingCountry, buyerRole, existingCurrencies] = await Promise.all([
+    prisma.country.findUnique({ where: { code: country.code }, select: { code: true } }),
+    prisma.role.findUnique({ where: { name: UserRole.BUYER } }),
+    prisma.currency.findMany({
+      where: { code: { in: requiredCurrencyCodes } },
+      select: { code: true },
+    }),
+  ]);
+  const existingCurrencyCodes = new Set(existingCurrencies.map(({ code }) => code));
+  const missingCurrencies = requiredCurrencyCodes.filter((code) => !existingCurrencyCodes.has(code));
+
   await Promise.all([
-    prisma.role.createMany({
+    !existingCountry && prisma.country.createMany({ data: [country], skipDuplicates: true }),
+    !buyerRole && prisma.role.createMany({
       data: ROLE_CATALOG.map((name) => ({ name, description: `${name} platform role` })),
       skipDuplicates: true,
     }),
-    prisma.country.createMany({
-      data: [country],
-      skipDuplicates: true,
-    }),
-    prisma.currency.createMany({
-      data: CURRENCY_CATALOG.map((currency) => ({ ...currency, isActive: true })),
+    missingCurrencies.length > 0 && prisma.currency.createMany({
+      data: CURRENCY_CATALOG
+        .filter(({ code }) => missingCurrencies.includes(code))
+        .map((currency) => ({ ...currency, isActive: true })),
       skipDuplicates: true,
     }),
   ]);
-  return prisma.role.findUniqueOrThrow({ where: { name: UserRole.BUYER } });
+  return buyerRole || prisma.role.findUniqueOrThrow({ where: { name: UserRole.BUYER } });
 }
 
 export class AuthService {
@@ -137,9 +145,6 @@ export class AuthService {
 
     const buyerRole = await ensureAuthReferenceData(country);
     const passwordHash = await argon2.hash(data.password);
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-    const verificationTokenHash = crypto.createHash('sha256').update(verificationToken).digest('hex');
-
     const user = await prisma.$transaction(async (tx) => {
       const createdUser = await tx.user.create({
         data: {
@@ -148,8 +153,6 @@ export class AuthService {
           ...(referredById ? { referredById } : {}),
           passwordHash,
           status: 'PENDING_VERIFICATION',
-          emailVerificationToken: verificationTokenHash,
-          emailVerificationExpiry: addMinutes(new Date(), 60 * 24),
           profile: {
             create: {
               username,
@@ -173,40 +176,6 @@ export class AuthService {
       return createdUser;
     });
 
-    try {
-      await NotificationService.createNotification({
-        userId: user.id,
-        type: 'SYSTEM',
-        title: 'Verify your email address',
-        message: 'Confirm your email address to activate your VouchNodes account. This link expires in 24 hours.',
-        data: { emailTemplate: 'email-verification' },
-        link: `/auth/verify-email?token=${encodeURIComponent(verificationToken)}`,
-        sendEmail: true,
-      });
-    } catch (error) {
-      logger.error({
-        userId: user.id,
-        error: error instanceof Error ? error.message : String(error),
-      }, 'Unable to queue new-user email verification');
-    }
-
-    try {
-      await NotificationService.createNotification({
-        userId: user.id,
-        type: 'SYSTEM',
-        title: WELCOME_EMAIL_SUBJECT,
-        message: 'Welcome to VouchNodes. Explore gift cards and digital products, and check the marketplace for current seller offers.',
-        data: { emailTemplate: 'welcome' },
-        link: '/marketplace',
-        sendEmail: true,
-      });
-    } catch (error) {
-      logger.error({
-        userId: user.id,
-        error: error instanceof Error ? error.message : String(error),
-      }, 'Unable to queue new-user welcome email');
-    }
-
     return this.toClientUser(user);
   }
 
@@ -224,11 +193,7 @@ export class AuthService {
       throw new Error('Invalid credentials');
     }
 
-    // Check account status before expensive password verification
-    if (user.status === 'PENDING_VERIFICATION') {
-      throw Object.assign(new Error('Please verify your email address before signing in.'), { statusCode: 403 });
-    }
-    if (user.status !== 'ACTIVE') {
+    if (user.status !== 'ACTIVE' && user.status !== 'PENDING_VERIFICATION') {
       throw new Error(`Account is ${user.status.toLowerCase().replace(/_/g, ' ')}`);
     }
 
@@ -341,7 +306,7 @@ export class AuthService {
     if (!session || session.isRevoked || isAfter(new Date(), session.expiresAt)) {
       throw Object.assign(new Error('Invalid or expired refresh token'), { statusCode: 401 });
     }
-    if (session.user.status !== 'ACTIVE') {
+    if (session.user.status !== 'ACTIVE' && session.user.status !== 'PENDING_VERIFICATION') {
       throw Object.assign(new Error('Account is no longer active'), { statusCode: 401 });
     }
 
@@ -451,7 +416,10 @@ export class AuthService {
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const user = await prisma.user.findFirst({
       where: {
-        emailVerificationToken: tokenHash,
+        OR: [
+          { emailVerificationToken: token },
+          { emailVerificationToken: tokenHash },
+        ],
         emailVerificationExpiry: { gt: new Date() }
       }
     });
@@ -464,7 +432,6 @@ export class AuthService {
       where: { id: user.id },
       data: {
         emailVerified: true,
-        status: 'ACTIVE',
         emailVerificationToken: null,
         emailVerificationExpiry: null
       }

@@ -391,6 +391,7 @@ class TelegramBot {
           },
           data: {
             telegramChatId: String(message.chat.id),
+            status: 'ACTIVE',
             tgVerificationToken: null,
             tgVerificationExpiry: null,
           },

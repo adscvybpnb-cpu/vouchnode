@@ -8,6 +8,8 @@ import { DepositScannerService } from '../services/deposit-scanner.service';
 import { config } from '../config';
 import { isTestPaymentSimulationAuthorized } from '../middleware/test-payment-simulation';
 import { FirstDepositBonusService } from '../services/first-deposit-bonus.service';
+import { TelegramBotService } from '../integrations/telegram/telegram.bot';
+import { prisma } from '../lib/prisma';
 
 const depositSessionSchema = z.object({
   currency: z.string().trim().min(2).max(10).transform((value) => value.toUpperCase()),
@@ -25,6 +27,28 @@ const simulatedPaymentSchema = z.object({
 
 export default async function walletRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authenticate);
+
+  app.get('/me/telegram/status', async (req: any, res) => {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { telegramChatId: true },
+    });
+    if (!user) {
+      return res.status(404).send({ statusCode: 404, error: 'Not Found', message: 'User not found.' });
+    }
+    return res.send({ linked: Boolean(user.telegramChatId) });
+  });
+
+  app.post('/me/telegram/link', async (req: any, res) => {
+    if (!config.telegram.botToken) {
+      return res.status(503).send({
+        statusCode: 503,
+        error: 'Telegram Unavailable',
+        message: 'Telegram verification is not configured.',
+      });
+    }
+    return res.send(await TelegramBotService.createLink(req.user.id));
+  });
 
   app.get('/', async (req: any, res) => {
     try {

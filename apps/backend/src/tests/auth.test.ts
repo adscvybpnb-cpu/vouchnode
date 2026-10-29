@@ -19,6 +19,9 @@ const mocks = vi.hoisted(() => ({
   roleCreateMany: vi.fn(),
   countryCreateMany: vi.fn(),
   currencyCreateMany: vi.fn(),
+  countryFindUnique: vi.fn(),
+  currencyFindMany: vi.fn(),
+  roleFindUnique: vi.fn(),
 }));
 
 vi.mock('../lib/prisma', () => ({
@@ -31,8 +34,8 @@ vi.mock('../lib/prisma', () => ({
         findMany: mocks.walletFindMany,
       },
     })),
-    country: { createMany: mocks.countryCreateMany },
-    currency: { createMany: mocks.currencyCreateMany },
+    country: { createMany: mocks.countryCreateMany, findUnique: mocks.countryFindUnique },
+    currency: { createMany: mocks.currencyCreateMany, findMany: mocks.currencyFindMany },
     user: {
       findFirst: vi.fn(),
       findUnique: vi.fn(),
@@ -44,7 +47,7 @@ vi.mock('../lib/prisma', () => ({
     },
     role: {
       createMany: mocks.roleCreateMany,
-      findUnique: vi.fn(),
+      findUnique: mocks.roleFindUnique,
       findUniqueOrThrow: vi.fn(),
       create: vi.fn()
     }
@@ -65,6 +68,9 @@ vi.mock('../services/notification.service', () => ({
 describe('AuthService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.countryFindUnique.mockResolvedValue(null);
+    mocks.currencyFindMany.mockResolvedValue([]);
+    mocks.roleFindUnique.mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -131,7 +137,7 @@ describe('AuthService', () => {
       .rejects.toThrow('Email or username already exists');
   });
 
-  it('queues the branded welcome email after a successful registration', async () => {
+  it('keeps signup on the Telegram verification path without waiting for email delivery', async () => {
     vi.mocked(prisma.user.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.role.findUniqueOrThrow).mockResolvedValue({ id: 'buyer-role' } as any);
     mocks.userCreate.mockResolvedValue({
@@ -143,8 +149,6 @@ describe('AuthService', () => {
     });
     mocks.walletCreateMany.mockResolvedValue({ count: INTERNAL_SUPPORTED_ASSET_CODES.length });
     mocks.walletFindMany.mockResolvedValue(Array.from({ length: INTERNAL_SUPPORTED_ASSET_CODES.length }, () => ({})));
-    vi.mocked(NotificationService.createNotification).mockResolvedValue({});
-
     await AuthService.register({
       email: ' New-User@example.com ',
       username: 'new-buyer',
@@ -157,20 +161,7 @@ describe('AuthService', () => {
     expect(mocks.walletCreateMany).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.arrayContaining([expect.objectContaining({ userId: 'new-user' })]),
     }));
-    expect(NotificationService.createNotification).toHaveBeenCalledWith(expect.objectContaining({
-      userId: 'new-user',
-      type: 'SYSTEM',
-      title: expect.stringContaining('Welcome to VouchNodes!'),
-      data: { emailTemplate: 'welcome' },
-      sendEmail: true
-    }));
-    expect(NotificationService.createNotification).toHaveBeenCalledWith(expect.objectContaining({
-      userId: 'new-user',
-      title: 'Verify your email address',
-      data: { emailTemplate: 'email-verification' },
-      link: expect.stringMatching(/^\/auth\/verify-email\?token=/),
-      sendEmail: true,
-    }));
+    expect(NotificationService.createNotification).not.toHaveBeenCalled();
   });
 
   it('creates a session transactionally and binds the access token to it', async () => {
@@ -201,29 +192,46 @@ describe('AuthService', () => {
     expect(tokenSpy).toHaveBeenCalledWith(user, 'login-session');
   });
 
-  it('denies login to users who still need to verify their email', async () => {
-    vi.mocked(prisma.user.findFirst).mockResolvedValue({
+  it('allows pending accounts to sign in and continue to Telegram verification', async () => {
+    const user = {
       id: 'pending-user',
+      email: 'pending@example.com',
+      passwordHash: 'stored-hash',
       status: 'PENDING_VERIFICATION',
+      tokenVersion: 0,
+      failedLoginAttempts: 0,
       lockedUntil: null,
-    } as any);
+      roles: [{ role: { name: 'BUYER' } }],
+    };
+    vi.mocked(prisma.user.findFirst).mockResolvedValue(user as any);
+    mocks.passwordVerify.mockResolvedValue(true);
+    mocks.userUpdate.mockResolvedValue(user);
+    mocks.sessionCreate.mockResolvedValue({ id: 'pending-session' });
+    vi.spyOn(AuthService, 'generateAccessToken').mockReturnValue('pending-access-token');
 
-    await expect(AuthService.login('pending@example.com', 'Password123!', '', ''))
-      .rejects.toMatchObject({ statusCode: 403 });
-    expect(mocks.passwordVerify).not.toHaveBeenCalled();
+    const result = await AuthService.login(user.email, 'Password123!', '', '');
+
+    expect(result.accessToken).toBe('pending-access-token');
+    expect(mocks.passwordVerify).toHaveBeenCalledWith(user.passwordHash, 'Password123!');
+    expect(mocks.sessionCreate).toHaveBeenCalled();
   });
 
-  it('activates the account after verifying a hashed email token', async () => {
+  it('marks email as verified without activating a Telegram-pending account', async () => {
     vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: 'pending-user' } as any);
     mocks.userUpdate.mockResolvedValue({});
 
     await AuthService.verifyEmail('verification-token');
 
     expect(prisma.user.findFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ emailVerificationToken: expect.any(String) }),
+      where: expect.objectContaining({
+        OR: expect.arrayContaining([
+          { emailVerificationToken: 'verification-token' },
+          { emailVerificationToken: expect.any(String) },
+        ]),
+      }),
     }));
     expect(mocks.userUpdate).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ emailVerified: true, status: 'ACTIVE' }),
+      data: { emailVerified: true, emailVerificationToken: null, emailVerificationExpiry: null },
     }));
   });
 
@@ -252,5 +260,27 @@ describe('AuthService', () => {
       where: expect.objectContaining({ id: session.id, refreshToken: 'old-refresh-token' }),
     }));
     expect(tokenSpy).toHaveBeenCalledWith(session.user, session.id);
+  });
+
+  it('keeps pending accounts able to refresh while they complete Telegram verification', async () => {
+    const session = {
+      id: 'pending-refresh-session',
+      refreshToken: 'pending-refresh-token',
+      isRevoked: false,
+      expiresAt: new Date(Date.now() + 60_000),
+      user: {
+        id: 'pending-user',
+        email: 'pending@example.com',
+        status: 'PENDING_VERIFICATION',
+        tokenVersion: 0,
+        roles: [{ role: { name: 'BUYER' } }],
+      },
+    };
+    mocks.sessionFindUnique.mockResolvedValue(session);
+    mocks.sessionUpdateMany.mockResolvedValue({ count: 1 });
+    vi.spyOn(AuthService, 'generateAccessToken').mockReturnValue('pending-refreshed-access-token');
+
+    await expect(AuthService.refreshToken('pending-refresh-token'))
+      .resolves.toMatchObject({ accessToken: 'pending-refreshed-access-token' });
   });
 });
