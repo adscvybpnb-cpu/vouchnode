@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { API_ORIGIN } from '@/lib/constants';
 
 interface P2PMerchantAvatarProps {
@@ -25,11 +25,14 @@ export const P2PMerchantAvatar = memo(function P2PMerchantAvatar({
         : rawAvatarUrl
     : null;
   const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
-  const [avatarLoaded, setAvatarLoaded] = useState(false);
+  const [loadedAvatarUrl, setLoadedAvatarUrl] = useState<string | null>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
-    setFailedAvatarUrl(null);
-    setAvatarLoaded(false);
+    const image = imageRef.current;
+    if (resolvedAvatarUrl && image?.complete && image.naturalWidth > 0) {
+      setLoadedAvatarUrl(resolvedAvatarUrl);
+    }
   }, [resolvedAvatarUrl]);
 
   return (
@@ -37,15 +40,16 @@ export const P2PMerchantAvatar = memo(function P2PMerchantAvatar({
       {resolvedAvatarUrl && failedAvatarUrl !== resolvedAvatarUrl ? (
         <img
           src={resolvedAvatarUrl}
+          ref={imageRef}
           alt={`${name} avatar`}
           loading="lazy"
           decoding="async"
-          onLoad={() => setAvatarLoaded(true)}
+          onLoad={() => setLoadedAvatarUrl(resolvedAvatarUrl)}
           onError={() => setFailedAvatarUrl(resolvedAvatarUrl)}
-          className={`${imageClassName} transition-opacity duration-200 ${avatarLoaded ? 'opacity-100' : 'opacity-0 blur-sm'}`}
+          className={`${imageClassName} transition-opacity duration-200 ${loadedAvatarUrl === resolvedAvatarUrl ? 'opacity-100' : 'opacity-0 blur-sm'}`}
         />
       ) : null}
-      {(!resolvedAvatarUrl || failedAvatarUrl === resolvedAvatarUrl || !avatarLoaded) && (
+      {(!resolvedAvatarUrl || failedAvatarUrl === resolvedAvatarUrl || loadedAvatarUrl !== resolvedAvatarUrl) && (
         <span className="absolute inset-0 flex items-center justify-center font-bold text-emerald-100">
           {(name.trim().charAt(0) || '?').toUpperCase()}
         </span>
