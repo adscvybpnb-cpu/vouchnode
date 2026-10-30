@@ -10,6 +10,7 @@ import { p2pService, type P2POrder, type P2POffer, type P2PProfile } from '@/ser
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore, type User } from '@/store/auth.store';
 import { getSellerOnboardingPath, isApprovedSeller } from '@/lib/seller-access';
+import { sellerService } from '@/services/seller.service';
 import { ResponsiveRowCard } from '@/components/layout/ResponsiveRowCard';
 import { P2PMerchantAvatar } from '@/components/p2p/P2PMerchantAvatar';
 import { AUTO_P2P_PAYMENT_METHODS } from '@vouchnode/shared';
@@ -197,6 +198,8 @@ function AdsView({ profile, loading, error, onPublished, editOffer }: { profile:
   const router = useRouter();
   const { user } = useAuthStore();
   const [formOpen, setFormOpen] = useState(false);
+  const [checkingSellerAccess, setCheckingSellerAccess] = useState(false);
+  const [sellerAccessVerified, setSellerAccessVerified] = useState(() => isApprovedSeller(user));
   const [side, setSide] = useState<'BUY' | 'SELL'>('BUY');
   const [giftCardType, setGiftCardType] = useState(popularGiftCards[0]);
   const [asset, setAsset] = useState('USDT');
@@ -218,7 +221,65 @@ function AdsView({ profile, loading, error, onPublished, editOffer }: { profile:
     setExchangeRate(String(editOffer.giftCardRate));
     setTerms(editOffer.terms || '');
     setFormOpen(true);
-  }, [editOffer]);
+    if (isApprovedSeller(user)) {
+      setSellerAccessVerified(true);
+      return;
+    }
+
+    let active = true;
+    setCheckingSellerAccess(true);
+    setSellerAccessVerified(false);
+    void sellerService.getMySellerStatus()
+      .then(({ status }) => {
+        if (!active) return;
+        useAuthStore.getState().updateUser({ sellerStatus: status });
+        if (status === 'approved') {
+          setSellerAccessVerified(true);
+        } else {
+          setFormOpen(false);
+          router.push(getSellerOnboardingPath('/p2p-offers'));
+        }
+      })
+      .catch((cause) => {
+        if (active) {
+          setFormError(cause instanceof Error
+            ? cause.message
+            : 'Unable to verify seller access. Please try again.');
+        }
+      })
+      .finally(() => {
+        if (active) setCheckingSellerAccess(false);
+      });
+    return () => { active = false; };
+  }, [editOffer, router, user?.sellerStatus]);
+
+  const openPublishForm = async () => {
+    if (!user) {
+      router.push('/login?redirect=/p2p-offers');
+      return;
+    }
+
+    setFormOpen(true);
+    setFormError('');
+    setSellerAccessVerified(false);
+    setCheckingSellerAccess(true);
+    try {
+      const { status } = await sellerService.getMySellerStatus();
+      useAuthStore.getState().updateUser({ sellerStatus: status });
+      if (status !== 'approved') {
+        setFormOpen(false);
+        router.push(getSellerOnboardingPath('/p2p-offers'));
+        return;
+      }
+      setSellerAccessVerified(true);
+    } catch (cause) {
+      setFormError(cause instanceof Error
+        ? cause.message
+        : 'Unable to verify seller access. Please try again.');
+    } finally {
+      setCheckingSellerAccess(false);
+    }
+  };
 
   const publish = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -226,8 +287,8 @@ function AdsView({ profile, loading, error, onPublished, editOffer }: { profile:
       router.push('/login?redirect=/p2p-offers');
       return;
     }
-    if (!isApprovedSeller(user)) {
-      router.push(getSellerOnboardingPath('/p2p-offers'));
+    if (!sellerAccessVerified) {
+      setFormError('Seller access has not been verified. Please check your connection and try again.');
       return;
     }
     const minimum = Number(minLimit);
@@ -274,9 +335,9 @@ function AdsView({ profile, loading, error, onPublished, editOffer }: { profile:
     <section className="mt-6 rounded-2xl border border-white/10 bg-[#11141d] p-5 shadow-2xl sm:p-8">
     <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
       <div><h1 className="text-2xl font-black tracking-tight">My Ads</h1><p className="mt-1 text-sm text-slate-500">Manage your active cryptocurrency advertisements.</p></div>
-      <button type="button" onClick={() => { if (!user) { router.push('/login?redirect=/p2p-offers'); return; } if (!isApprovedSeller(user)) { router.push(getSellerOnboardingPath('/p2p-offers')); return; } setFormOpen(true); setFormError(''); }} className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-emerald-300"><span className="text-lg leading-none">+</span> Publish Now</button>
+      <button type="button" onClick={() => void openPublishForm()} className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-emerald-300"><span className="text-lg leading-none">+</span> Publish Now</button>
     </div>
-    {loading ? <div className="p-12 text-center text-slate-400">Loading ads...</div> : error ? <div className="mt-5 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</div> : profile?.ads.length ? <div className="mt-6 space-y-3">{profile.ads.map((ad) => <article key={ad.id} className="rounded-xl border border-white/10 bg-[#0b0d14] p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex min-w-0 items-center gap-3"><span className="shrink-0 rounded-full bg-cyan-400/10 px-2.5 py-1 text-xs font-bold text-cyan-300">{ad.side}</span><span className="font-bold">{ad.asset}</span></div><div className="flex items-center justify-between gap-3 sm:justify-end"><span className="font-bold">${ad.price.toFixed(4)} / $1 card</span><button type="button" aria-label={`Delete ${ad.asset} ${ad.side} ad`} disabled={deletingId === ad.id} onClick={async () => { setDeletingId(ad.id); setFormError(''); try { await p2pService.deleteAd(ad.id); onPublished(ad.id); } catch (cause) { setFormError(cause instanceof Error ? cause.message : 'Unable to delete ad.'); } finally { setDeletingId(''); } }} className="rounded-lg p-2 text-slate-500 transition hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50"><Trash2 className="h-4 w-4" /></button></div></div></article>)}</div> : <div className="mt-6 flex flex-col items-center gap-3 rounded-xl border border-dashed border-white/10 p-12 text-center"><Megaphone className="h-10 w-10 text-slate-600" /><p className="font-semibold text-slate-300">No active ads</p><p className="text-sm text-slate-500">Publish a buy or sell ad to start trading.</p><button type="button" onClick={() => { if (!user) { router.push('/login?redirect=/p2p-offers'); return; } if (!isApprovedSeller(user)) { router.push(getSellerOnboardingPath('/p2p-offers')); return; } setFormOpen(true); }} className="mt-2 rounded-lg border border-emerald-400/30 px-4 py-2 text-sm font-semibold text-emerald-300">+</button></div>}
+    {loading ? <div className="p-12 text-center text-slate-400">Loading ads...</div> : error ? <div className="mt-5 rounded-xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</div> : profile?.ads.length ? <div className="mt-6 space-y-3">{profile.ads.map((ad) => <article key={ad.id} className="rounded-xl border border-white/10 bg-[#0b0d14] p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex min-w-0 items-center gap-3"><span className="shrink-0 rounded-full bg-cyan-400/10 px-2.5 py-1 text-xs font-bold text-cyan-300">{ad.side}</span><span className="font-bold">{ad.asset}</span></div><div className="flex items-center justify-between gap-3 sm:justify-end"><span className="font-bold">${ad.price.toFixed(4)} / $1 card</span><button type="button" aria-label={`Delete ${ad.asset} ${ad.side} ad`} disabled={deletingId === ad.id} onClick={async () => { setDeletingId(ad.id); setFormError(''); try { await p2pService.deleteAd(ad.id); onPublished(ad.id); } catch (cause) { setFormError(cause instanceof Error ? cause.message : 'Unable to delete ad.'); } finally { setDeletingId(''); } }} className="rounded-lg p-2 text-slate-500 transition hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50"><Trash2 className="h-4 w-4" /></button></div></div></article>)}</div> : <div className="mt-6 flex flex-col items-center gap-3 rounded-xl border border-dashed border-white/10 p-12 text-center"><Megaphone className="h-10 w-10 text-slate-600" /><p className="font-semibold text-slate-300">No active ads</p><p className="text-sm text-slate-500">Publish a buy or sell ad to start trading.</p><button type="button" onClick={() => void openPublishForm()} className="mt-2 rounded-lg border border-emerald-400/30 px-4 py-2 text-sm font-semibold text-emerald-300">+</button></div>}
     {formOpen && (
       <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4">
         <form onSubmit={publish} className="w-full max-w-md space-y-4 rounded-2xl border border-white/10 bg-[#11141d] p-6 shadow-2xl">
@@ -325,7 +386,7 @@ function AdsView({ profile, loading, error, onPublished, editOffer }: { profile:
             <textarea value={terms} onChange={(event) => setTerms(event.target.value)} rows={5} placeholder="Describe your payment and trade requirements" className="mt-1 block w-full max-w-full min-w-0 resize-y break-words whitespace-pre-wrap rounded-xl border border-white/10 bg-[#0b0d14] p-3 text-sm text-white outline-none [overflow-wrap:anywhere] placeholder:text-slate-600" />
           </label>
           {formError && <p className="text-sm text-red-300">{formError}</p>}
-          <button type="submit" disabled={submitting} className="w-full rounded-xl bg-emerald-400 px-4 py-3 font-bold text-slate-950 disabled:opacity-50">{submitting ? 'Publishing...' : 'Publish Ad'}</button>
+          <button type="submit" disabled={submitting || checkingSellerAccess} className="w-full rounded-xl bg-emerald-400 px-4 py-3 font-bold text-slate-950 disabled:opacity-50">{checkingSellerAccess ? 'Checking seller access...' : submitting ? 'Publishing...' : 'Publish Ad'}</button>
         </form>
       </div>
     )}
