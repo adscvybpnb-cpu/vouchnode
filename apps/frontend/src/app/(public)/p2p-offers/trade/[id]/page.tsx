@@ -31,11 +31,44 @@ export default function P2PTradePage() {
   });
   const offer = offerQuery.data ?? null;
   const [giftCardValue, setGiftCardValue] = useState('');
+  const [debouncedGiftCardValue, setDebouncedGiftCardValue] = useState('');
   const [tradeError, setTradeError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const loading = Boolean(offerId) && offerQuery.isLoading;
   const error = offerQuery.error instanceof Error ? offerQuery.error.message : '';
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedGiftCardValue(giftCardValue), 300);
+    return () => clearTimeout(timeout);
+  }, [giftCardValue]);
+
+  const numericGiftCardValue = giftCardValue.trim() === '' ? Number.NaN : Number(giftCardValue);
+  const effectiveMax = offer?.effectiveMax ?? offer?.maxLimit ?? 0;
+  const giftCardDecimalPlaces = giftCardValue.trim().split('.')[1]?.length ?? 0;
+  const isValidQuoteAmount = Boolean(
+    offer &&
+    Number.isFinite(numericGiftCardValue) &&
+    numericGiftCardValue >= offer.minLimit &&
+    numericGiftCardValue <= effectiveMax &&
+    giftCardDecimalPlaces <= 2,
+  );
+  const quoteQuery = useQuery({
+    queryKey: ['p2p', 'offer-quote', offerId, debouncedGiftCardValue],
+    queryFn: ({ signal }) => p2pService.getQuote(offerId, Number(debouncedGiftCardValue), signal),
+    enabled: Boolean(offer && isValidQuoteAmount && debouncedGiftCardValue === giftCardValue),
+    staleTime: 5_000,
+    gcTime: 60_000,
+    retry: false,
+  });
+  const currentQuote = quoteQuery.data?.giftCardValueUSD === numericGiftCardValue
+    ? quoteQuery.data
+    : null;
+  const quoteIsCalculating = isValidQuoteAmount &&
+    (debouncedGiftCardValue !== giftCardValue || quoteQuery.isFetching);
+  const quoteError = debouncedGiftCardValue === giftCardValue && quoteQuery.error instanceof Error
+    ? quoteQuery.error.message
+    : '';
 
   useEffect(() => {
     if (!presenceSocket) return;
@@ -65,21 +98,17 @@ export default function P2PTradePage() {
     };
   }, [offerQueryKey, presenceSocket, queryClient]);
 
-  const cryptoAmount = useMemo(() => {
-    const value = Number(giftCardValue);
-    if (!offer || !Number.isFinite(value) || value < 0 || !offer.cryptoUsdPrice) return '';
-    const payoutUSD = value * offer.giftCardRate;
-    const precision = ({ USDT: 6, BTC: 8, ETH: 18, BNB: 18, SOL: 9, LTC: 8 } as const)[
-      offer.cryptoCurrency as 'USDT' | 'BTC' | 'ETH' | 'BNB' | 'SOL' | 'LTC'
-    ] ?? 8;
-    return (payoutUSD / offer.cryptoUsdPrice).toFixed(precision);
-  }, [giftCardValue, offer]);
+  const cryptoAmount = currentQuote?.cryptoAmount ?? '';
 
   const initiateTrade = async () => {
     const amountUSD = Number(giftCardValue);
     const effectiveMax = offer!.effectiveMax ?? offer!.maxLimit;
     if (!Number.isFinite(amountUSD) || amountUSD < offer!.minLimit || amountUSD > effectiveMax) {
       setTradeError(`Enter a gift card value between ${offer!.minLimit.toFixed(2)} and ${effectiveMax.toFixed(2)} USD.`);
+      return;
+    }
+    if (!currentQuote) {
+      setTradeError('Wait for a live quote before continuing.');
       return;
     }
     setTradeError('');
@@ -160,8 +189,9 @@ export default function P2PTradePage() {
             </div>
             <div className="mt-8 grid gap-5 sm:grid-cols-2">
               <label className="text-sm font-semibold text-slate-300">Gift Card Value (USD)<input type="number" min={offer.minLimit} max={offer.effectiveMax ?? offer.maxLimit} step="0.01" value={giftCardValue} onChange={(event) => setGiftCardValue(event.target.value)} placeholder={`${offer.minLimit.toFixed(2)} - ${(offer.effectiveMax ?? offer.maxLimit).toFixed(2)}`} className="mt-2 w-full rounded-xl border border-white/10 bg-[#0b0d14] p-4 text-lg text-white outline-none focus:border-emerald-400" /></label>
-              <label className="text-sm font-semibold text-slate-300">Estimated Crypto ({offer.cryptoCurrency})<input type="text" value={cryptoAmount} readOnly placeholder="Calculating live quote..." className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 p-4 text-lg text-emerald-300 outline-none" /></label>
+              <label className="text-sm font-semibold text-slate-300">Estimated Crypto ({offer.cryptoCurrency})<input type="text" value={cryptoAmount} readOnly placeholder={quoteIsCalculating ? 'Calculating live quote...' : quoteError ? 'Quote unavailable' : 'Enter a valid gift card value'} className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 p-4 text-lg text-emerald-300 outline-none" /></label>
             </div>
+            {quoteError && <p role="status" className="mt-2 text-sm text-red-300">{quoteError}</p>}
             <p className="mt-3 text-xs text-slate-500">Final payout and crypto amount are calculated and locked by the server using its live spot quote when you confirm.</p>
             <p className="mt-4 text-xs text-slate-500">Limits: {offer.minLimit.toFixed(2)} - {(offer.effectiveMax ?? offer.maxLimit).toFixed(2)} USD</p>
             {tradeError && <p className="mt-4 text-sm text-red-300">{tradeError}</p>}
@@ -197,13 +227,13 @@ export default function P2PTradePage() {
             <h2 className="text-xl font-bold">Confirm Trade</h2>
             <div className="mt-5 space-y-3 rounded-xl bg-white/5 p-4 text-sm">
               <p>Gift Card Face Value: <span className="font-bold">{Number(giftCardValue).toFixed(2)} USD {offer.giftCardType}</span></p>
-              <p>Merchant Payout: <span className="font-bold">${(Number(giftCardValue) * offer.giftCardRate).toFixed(2)} USD</span></p>
+              <p>Merchant Payout: <span className="font-bold">${currentQuote?.payoutUSD ?? '—'} USD</span></p>
               <p>Estimated Escrow: <span className="font-bold text-emerald-300">{cryptoAmount} {offer.cryptoCurrency}</span></p>
             </div>
             {tradeError && <p className="mt-4 text-sm text-red-300">{tradeError}</p>}
             <div className="mt-6 flex gap-3">
               <button type="button" onClick={() => setShowConfirmation(false)} disabled={submitting} className="flex-1 rounded-xl border border-white/10 px-4 py-3 font-semibold text-slate-300 hover:bg-white/5">Cancel</button>
-              <button type="button" onClick={() => void confirmTrade()} disabled={submitting || !Number.isFinite(Number(giftCardValue)) || Number(giftCardValue) < offer.minLimit || Number(giftCardValue) > (offer.effectiveMax ?? offer.maxLimit)} className="flex-1 rounded-xl bg-blue-500 px-4 py-3 font-semibold text-white hover:bg-blue-400 disabled:opacity-50">{submitting ? 'Creating...' : 'Continue Trading'}</button>
+              <button type="button" onClick={() => void confirmTrade()} disabled={submitting || !currentQuote || !Number.isFinite(Number(giftCardValue)) || Number(giftCardValue) < offer.minLimit || Number(giftCardValue) > (offer.effectiveMax ?? offer.maxLimit)} className="flex-1 rounded-xl bg-blue-500 px-4 py-3 font-semibold text-white hover:bg-blue-400 disabled:opacity-50">{submitting ? 'Creating...' : 'Continue Trading'}</button>
             </div>
           </div>
         </div>

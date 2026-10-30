@@ -31,6 +31,7 @@ export async function quoteP2PTrade(
   giftCardValueUSD: Prisma.Decimal,
   giftCardRate: Prisma.Decimal,
   asset: string,
+  forceRefresh = true,
 ) {
   const normalizedAsset = asset.trim().toUpperCase();
   if (!isP2PAsset(normalizedAsset)) {
@@ -41,7 +42,7 @@ export async function quoteP2PTrade(
     throw new Error('Gift card value and payout rate must be greater than zero');
   }
 
-  const cryptoUsdPrice = await getP2PSpotPrice(normalizedAsset, true);
+  const cryptoUsdPrice = await getP2PSpotPrice(normalizedAsset, forceRefresh);
   if (!cryptoUsdPrice.isFinite() || cryptoUsdPrice.lte(0)) {
     throw new Error(`Live USD price unavailable for ${normalizedAsset}`);
   }

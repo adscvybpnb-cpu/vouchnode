@@ -10,6 +10,7 @@ import {
   getP2PSpotPrice,
   isP2PAsset,
   P2P_SUPPORTED_ASSETS,
+  quoteP2PTrade,
 } from '../services/p2p-pricing.service';
 
 const ACTIVE_WINDOW_MS = 5 * 60 * 1000;
@@ -101,6 +102,65 @@ export default async function p2pRoutes(app: FastifyInstance) {
     } catch (cause) {
       const err = cause as Error & { statusCode?: number };
       return res.status(err.statusCode || 500).send({ message: err.message || 'Unable to complete P2P order' });
+    }
+  });
+
+  app.get('/offers/:id/quote', async (req: any, res) => {
+    const rawGiftCardValue = req.query?.giftCardValueUSD;
+    if (typeof rawGiftCardValue !== 'string' || rawGiftCardValue.trim() === '') {
+      return res.status(400).send({ message: 'A valid gift card value is required' });
+    }
+
+    if (!Number.isFinite(Number(rawGiftCardValue))) {
+      return res.status(400).send({ message: 'A valid gift card value is required' });
+    }
+
+    let giftCardValue: Prisma.Decimal;
+    try {
+      giftCardValue = new Prisma.Decimal(rawGiftCardValue);
+    } catch {
+      return res.status(400).send({ message: 'A valid gift card value is required' });
+    }
+    if (!giftCardValue.isFinite() || giftCardValue.lte(0) || giftCardValue.decimalPlaces() > 2) {
+      return res.status(400).send({ message: 'Gift card value must be positive and use no more than two decimal places' });
+    }
+
+    try {
+      const offer = await prisma.p2POffer.findUnique({
+        where: { id: req.params.id },
+        select: {
+          id: true,
+          cryptoAsset: true,
+          exchangeRate: true,
+          minLimit: true,
+          maxLimit: true,
+          isActive: true,
+        },
+      });
+      if (!offer || !offer.isActive) {
+        return res.status(404).send({ message: 'P2P offer not found' });
+      }
+      if (giftCardValue.lt(offer.minLimit) || giftCardValue.gt(offer.maxLimit)) {
+        return res.status(400).send({ message: 'The gift card value is outside the offer limits' });
+      }
+
+      const quote = await quoteP2PTrade(
+        giftCardValue,
+        new Prisma.Decimal(offer.exchangeRate),
+        offer.cryptoAsset,
+        false,
+      );
+      return res.status(200).send({
+        data: {
+          giftCardValueUSD: giftCardValue.toNumber(),
+          payoutUSD: quote.payoutUSD.toFixed(2),
+          cryptoUsdPrice: quote.cryptoUsdPrice.toString(),
+          cryptoAmount: quote.cryptoAmount.toString(),
+        },
+      });
+    } catch (error) {
+      req.log.error({ err: error, offerId: req.params.id }, 'Unable to calculate P2P trade quote');
+      return res.status(503).send({ message: 'Live quote is temporarily unavailable. Please try again.' });
     }
   });
 

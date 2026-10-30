@@ -19,6 +19,19 @@ describe('Quick P2P pricing', () => {
     expect(getPrices).toHaveBeenCalledWith('BTC', true);
   });
 
+  it('can calculate an input quote from the current cached price without forcing a refresh', async () => {
+    const getPrices = vi.spyOn(PriceService, 'getUsdPriceDecimal').mockResolvedValue(new Prisma.Decimal(50_000));
+
+    await quoteP2PTrade(
+      new Prisma.Decimal(10),
+      new Prisma.Decimal('0.8'),
+      'BTC',
+      false,
+    );
+
+    expect(getPrices).toHaveBeenCalledWith('BTC', false);
+  });
+
   it.each([
     ['USDT', '0.98', '80'],
     ['BTC', '50000', '0.0016'],

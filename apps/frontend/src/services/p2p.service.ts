@@ -71,6 +71,13 @@ export type P2POrderDetail = {
   paidVerificationDeadline: string | null; disputeEnabled: boolean;
 };
 
+export type P2PQuote = {
+  giftCardValueUSD: number;
+  payoutUSD: string;
+  cryptoUsdPrice: string;
+  cryptoAmount: string;
+};
+
 export const p2pService = {
   async getOffers(filters?: { type?: 'BUY' | 'SELL'; asset?: string; paymentMethod?: string }) {
     const params = new URLSearchParams();
@@ -110,6 +117,16 @@ export const p2pService = {
             avatarUrl,
           },
     };
+  },
+  async getQuote(id: string, giftCardValueUSD: number, signal?: AbortSignal) {
+    const query = new URLSearchParams({ giftCardValueUSD: String(giftCardValueUSD) });
+    const response = await apiClient.get<P2PQuote>(
+      `/p2p/offers/${encodeURIComponent(id)}/quote?${query}`,
+      { signal },
+    );
+    if (response.error) throw new Error(response.error);
+    if (!response.data) throw new Error('The live quote response was empty.');
+    return response.data;
   },
   async createOrder(data: { offerId: string; giftCardValueUSD: number }) {
     const response = await apiClient.post<{ order: P2POrderDetail; conversationId: string }>('/p2p/orders', data);
