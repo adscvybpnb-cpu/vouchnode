@@ -571,19 +571,29 @@ export class DepositScannerService {
         depositUsdValue: depositUsdValue?.toString() ?? null,
         awarded: firstDepositBonusAwarded,
       }));
-      await NotificationService.createNotification({
-        userId, type: 'DEPOSIT_CONFIRMED', title: 'Deposit Credited',
-        message: firstDepositBonusAwarded
-          ? `Your automated deposit of ${amount} ${completed.currency} has been processed. A $10 USDT first-deposit bonus has been added to your wallet.`
-          : `Your automated deposit of ${amount} ${completed.currency} has been successfully processed.`,
-        data: {
+      try {
+        await NotificationService.createNotification({
+          userId, type: 'DEPOSIT_CONFIRMED', title: 'Deposit Credited',
+          message: firstDepositBonusAwarded
+            ? `Your automated deposit of ${amount} ${completed.currency} has been processed. A $10 USDT first-deposit bonus has been added to your wallet.`
+            : `Your automated deposit of ${amount} ${completed.currency} has been successfully processed.`,
+          data: {
+            depositSessionId: completed.id,
+            amount,
+            currency: completed.currency,
+            firstDepositBonusAwarded,
+          },
+          link: '/dashboard/wallet',
+        });
+      } catch (error) {
+        console.error(JSON.stringify({
+          event: 'deposit_settled_notification_failed',
+          userId,
           depositSessionId: completed.id,
-          amount,
-          currency: completed.currency,
           firstDepositBonusAwarded,
-        },
-        link: '/dashboard/wallet',
-      });
+          error: error instanceof Error ? error.message : String(error),
+        }));
+      }
       return completed;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {

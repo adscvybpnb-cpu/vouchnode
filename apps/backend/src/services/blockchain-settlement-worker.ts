@@ -404,7 +404,12 @@ export class BlockchainSettlementWorker {
             });
           } catch (error) {
             logger.warn(
-              { depositId, error: error instanceof Error ? error.message : String(error) },
+              {
+                depositId,
+                userId: notification.userId,
+                firstDepositBonusAwarded: notification.firstDepositBonusAwarded,
+                error: error instanceof Error ? error.message : String(error),
+              },
               'Deposit settled but confirmation notification failed',
             );
           }

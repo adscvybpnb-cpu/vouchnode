@@ -50,26 +50,44 @@ export class NotificationService {
     const input: CreateNotificationInput = typeof inputOrUserId === 'string'
       ? { userId: inputOrUserId, type: type || NotificationType.SYSTEM, title: title || '', message: body || '', data }
       : inputOrUserId;
+    if (typeof input.userId !== 'string' || !input.userId.trim()) {
+      throw new TypeError('A non-empty notification recipient userId is required.');
+    }
     const message = input.message ?? input.body ?? '';
-    const notification = await prisma.notification.create({
-      data: {
-        userId: input.userId,
-        type: toNotificationType(input.type),
-        title: input.title,
-        message,
-        body: input.body ?? message,
-        data: input.data ?? {},
-        link: input.link,
-        dedupeKey: input.dedupeKey,
-        expiresAt: input.expiresAt,
-      },
-    });
+    let notification: Awaited<ReturnType<typeof prisma.notification.create>>;
+    try {
+      notification = await prisma.notification.create({
+        data: {
+          userId: input.userId,
+          type: toNotificationType(input.type),
+          title: input.title,
+          message,
+          body: input.body ?? message,
+          data: input.data ?? {},
+          link: input.link,
+          dedupeKey: input.dedupeKey,
+          expiresAt: input.expiresAt,
+        },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+        logger.error({
+          userId: input.userId,
+          notificationType: input.type,
+          error: error.message,
+        }, 'Notification recipient foreign key failed');
+      }
+      throw error;
+    }
     const sendEmail = Boolean(input.sendEmail || emailNotificationTypes.has(notification.type));
     this.emit(notification, sendEmail);
     return notification;
   }
 
   static async createInTransaction(client: NotificationClient, input: CreateNotificationInput) {
+    if (typeof input.userId !== 'string' || !input.userId.trim()) {
+      throw new TypeError('A non-empty notification recipient userId is required.');
+    }
     const message = input.message ?? input.body ?? '';
     return client.notification.create({
       data: {
