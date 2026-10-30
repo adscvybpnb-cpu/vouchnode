@@ -1,38 +1,41 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Bell, CheckCheck, ExternalLink } from 'lucide-react';
 import { notificationService } from '@/services/notification.service';
 import { useNotificationStore } from '@/store/notification.store';
 import type { Notification } from '@/types/api.types';
 import { getNotificationPath } from '@/utils/notification-navigation';
+import { useAuthStore } from '@/store/auth.store';
 
 export default function NotificationsPage() {
-  const [items, setItems] = useState<Notification[]>([]);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(true);
   const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('default');
   const { setNotifications, markRead, markAllRead } = useNotificationStore();
-
-  const load = async (nextPage = 1) => {
-    setLoading(true);
-    try {
-      const result = await notificationService.getNotifications(nextPage, 25);
-      setItems((current) => nextPage === 1 ? result.items : [...current, ...result.items]);
-      setPage(result.page);
-      setTotalPages(result.totalPages);
-      if (nextPage === 1) setNotifications(result.items);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const userId = useAuthStore((state) => state.user?.id);
+  const queryClient = useQueryClient();
+  const queryKey = ['notifications', userId ?? 'anonymous', 25] as const;
+  const notificationsQuery = useInfiniteQuery({
+    queryKey,
+    queryFn: ({ pageParam }) => notificationService.getNotifications(pageParam, 25),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined,
+    enabled: Boolean(userId),
+    staleTime: 10_000,
+  });
+  const pages = notificationsQuery.data?.pages ?? [];
+  const items = pages.flatMap((page) => page.items);
+  const page = pages[pages.length - 1]?.page ?? 1;
+  const totalPages = pages[pages.length - 1]?.totalPages ?? 1;
+  const loading = notificationsQuery.isPending || notificationsQuery.isFetchingNextPage;
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) setPermission(Notification.permission);
-    void load();
   }, []);
+  useEffect(() => {
+    if (pages.length > 0) setNotifications(pages[0].items);
+  }, [pages, setNotifications]);
 
   const enableDesktopNotifications = async () => {
     if (!('Notification' in window)) return;
@@ -43,14 +46,32 @@ export default function NotificationsPage() {
   const markEverythingRead = async () => {
     await notificationService.markAllRead();
     markAllRead();
-    setItems((current) => current.map((item) => ({ ...item, isRead: true })));
+    queryClient.setQueryData<InfiniteData<Awaited<ReturnType<typeof notificationService.getNotifications>>, number>>(
+      queryKey,
+      (current) => current ? {
+        ...current,
+        pages: current.pages.map((result) => ({
+          ...result,
+          items: result.items.map((item) => ({ ...item, isRead: true })),
+        })),
+      } : current,
+    );
   };
 
   const markOneRead = async (item: Notification) => {
     if (item.isRead) return;
     await notificationService.markRead(item.id);
     markRead(item.id);
-    setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, isRead: true } : entry));
+    queryClient.setQueryData<InfiniteData<Awaited<ReturnType<typeof notificationService.getNotifications>>, number>>(
+      queryKey,
+      (current) => current ? {
+        ...current,
+        pages: current.pages.map((result) => ({
+          ...result,
+          items: result.items.map((entry) => entry.id === item.id ? { ...entry, isRead: true } : entry),
+        })),
+      } : current,
+    );
   };
 
   return (
@@ -99,7 +120,7 @@ export default function NotificationsPage() {
         )}
         {page < totalPages && (
           <div className="border-t border-white/10 p-4 text-center">
-            <button disabled={loading} onClick={() => void load(page + 1)} className="text-sm text-indigo-300 hover:underline disabled:opacity-50">Load more</button>
+            <button disabled={loading} onClick={() => void notificationsQuery.fetchNextPage()} className="text-sm text-indigo-300 hover:underline disabled:opacity-50">Load more</button>
           </div>
         )}
       </div>

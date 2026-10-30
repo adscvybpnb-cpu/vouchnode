@@ -6,6 +6,7 @@ const resolveApiUrl = (endpoint: string, prefix: string) => {
 };
 
 const API_REQUEST_TIMEOUT_MS = 20_000;
+const inFlightGetRequests = new Map<string, Promise<ApiResponse<unknown>>>();
 
 export interface ApiResponse<T = any> {
   data: T | null;
@@ -197,7 +198,37 @@ class ApiClient {
   }
 
   async get<T>(endpoint: string, options?: RequestInit) {
-    return this.request<T>(endpoint, { ...options, method: 'GET' });
+    if (options?.signal) {
+      return this.request<T>(endpoint, { ...options, method: 'GET' });
+    }
+
+    const userId = useAuthStore.getState().user?.id ?? 'anonymous';
+    const accessToken = useAuthStore.getState().accessToken ?? '';
+    const headers = new Headers(options?.headers || {});
+    const headerEntries = Array.from(headers.entries()).sort(([left], [right]) => left.localeCompare(right));
+    const requestKey = JSON.stringify([
+      this.prefix,
+      endpoint,
+      userId,
+      accessToken,
+      options?.cache ?? '',
+      options?.credentials ?? '',
+      options?.mode ?? '',
+      headerEntries,
+    ]);
+    const existing = inFlightGetRequests.get(requestKey);
+    if (existing) return existing as Promise<ApiResponse<T>>;
+
+    const request = this.request<T>(endpoint, { ...options, method: 'GET' })
+      .then((response) => response as ApiResponse<unknown>);
+    inFlightGetRequests.set(requestKey, request);
+    try {
+      return await request as ApiResponse<T>;
+    } finally {
+      if (inFlightGetRequests.get(requestKey) === request) {
+        inFlightGetRequests.delete(requestKey);
+      }
+    }
   }
 
   async post<T>(endpoint: string, body: any, options?: RequestInit) {

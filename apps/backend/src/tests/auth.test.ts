@@ -180,7 +180,7 @@ describe('AuthService', () => {
     mocks.passwordVerify.mockResolvedValue(true);
     mocks.userUpdate.mockResolvedValue(user);
     mocks.sessionCreate.mockResolvedValue({ id: 'login-session' });
-    const tokenSpy = vi.spyOn(AuthService, 'generateAccessToken').mockReturnValue('access-token');
+    const tokenSpy = vi.spyOn(AuthService, 'generateAccessToken').mockResolvedValue('access-token');
 
     const result = await AuthService.login(user.email, 'Password123!', '127.0.0.1', 'test-agent');
 
@@ -218,7 +218,7 @@ describe('AuthService', () => {
     mocks.passwordVerify.mockResolvedValue(true);
     mocks.userUpdate.mockResolvedValue(user);
     mocks.sessionCreate.mockResolvedValue({ id: 'pending-session' });
-    vi.spyOn(AuthService, 'generateAccessToken').mockReturnValue('pending-access-token');
+    vi.spyOn(AuthService, 'generateAccessToken').mockResolvedValue('pending-access-token');
 
     const result = await AuthService.login(user.email, 'Password123!', '', '');
 
@@ -262,7 +262,7 @@ describe('AuthService', () => {
     };
     mocks.sessionFindUnique.mockResolvedValue(session);
     mocks.sessionUpdateMany.mockResolvedValue({ count: 1 });
-    const tokenSpy = vi.spyOn(AuthService, 'generateAccessToken').mockReturnValue('refreshed-access-token');
+    const tokenSpy = vi.spyOn(AuthService, 'generateAccessToken').mockResolvedValue('refreshed-access-token');
 
     const result = await AuthService.refreshToken('old-refresh-token');
 
@@ -289,7 +289,7 @@ describe('AuthService', () => {
     };
     mocks.sessionFindUnique.mockResolvedValue(session);
     mocks.sessionUpdateMany.mockResolvedValue({ count: 1 });
-    vi.spyOn(AuthService, 'generateAccessToken').mockReturnValue('pending-refreshed-access-token');
+    vi.spyOn(AuthService, 'generateAccessToken').mockResolvedValue('pending-refreshed-access-token');
 
     await expect(AuthService.refreshToken('pending-refresh-token'))
       .resolves.toMatchObject({ accessToken: 'pending-refreshed-access-token' });

@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 
 interface P2PMerchantAvatarProps {
   name: string;
@@ -16,18 +16,28 @@ export const P2PMerchantAvatar = memo(function P2PMerchantAvatar({
   imageClassName = 'h-full w-full object-cover',
 }: P2PMerchantAvatarProps) {
   const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
+  const [avatarLoaded, setAvatarLoaded] = useState(false);
+
+  useEffect(() => {
+    setFailedAvatarUrl(null);
+    setAvatarLoaded(false);
+  }, [avatarUrl]);
 
   return (
-    <div className={`relative shrink-0 overflow-hidden ${className}`}>
+    <div className={`relative shrink-0 overflow-hidden bg-gradient-to-br from-emerald-400/20 to-cyan-500/20 ${className}`}>
       {avatarUrl && failedAvatarUrl !== avatarUrl ? (
         <img
           src={avatarUrl}
           alt={`${name} avatar`}
+          loading="lazy"
+          decoding="async"
+          onLoad={() => setAvatarLoaded(true)}
           onError={() => setFailedAvatarUrl(avatarUrl)}
-          className={imageClassName}
+          className={`${imageClassName} transition-opacity duration-200 ${avatarLoaded ? 'opacity-100' : 'opacity-0 blur-sm'}`}
         />
-      ) : (
-        <span className="flex h-full w-full items-center justify-center bg-gradient-to-br from-emerald-400 to-cyan-500 font-bold text-slate-950">
+      ) : null}
+      {(!avatarUrl || failedAvatarUrl === avatarUrl || !avatarLoaded) && (
+        <span className="absolute inset-0 flex items-center justify-center font-bold text-emerald-100">
           {(name.trim().charAt(0) || '?').toUpperCase()}
         </span>
       )}

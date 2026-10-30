@@ -1,12 +1,12 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, ArrowLeft, CheckCircle2, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { walletService } from '@/services/wallet.service';
-import type { AssetBalance, PortfolioSummary } from '@/types/api.types';
+import { useWalletSnapshot } from '@/hooks/useWalletSnapshot';
 
 const defaultNetwork = (currency: string) => {
   switch (currency) {
@@ -22,12 +22,14 @@ const defaultNetwork = (currency: string) => {
 };
 
 export default function WithdrawPage() {
-  const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(null);
+  const walletQuery = useWalletSnapshot();
+  const portfolio = walletQuery.data?.portfolio ?? null;
   const [currency, setCurrency] = useState('');
   const [amount, setAmount] = useState('');
   const [address, setAddress] = useState('');
-  const [loading, setLoading] = useState(true);
+  const loading = walletQuery.isPending;
   const [submitting, setSubmitting] = useState(false);
+  const submissionInFlight = useRef(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -39,24 +41,22 @@ export default function WithdrawPage() {
   const canSubmit = Boolean(selected && address.trim() && !invalidAmount && !submitting);
 
   const load = async () => {
-    setLoading(true);
     setError('');
-    try {
-      const next = await walletService.getPortfolio();
-      setPortfolio(next);
-      setCurrency((current) => current || next.assets.find((asset) => Number(asset.availableBalance) > 0)?.currency || '');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to load wallet balances.');
-    } finally {
-      setLoading(false);
+    const result = await walletQuery.refetch();
+    if (result.error) {
+      setError(result.error instanceof Error ? result.error.message : 'Unable to load wallet balances.');
     }
   };
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    if (!portfolio) return;
+    setCurrency((current) => current || portfolio.assets.find((asset) => Number(asset.availableBalance) > 0)?.currency || '');
+  }, [portfolio]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!selected || !canSubmit) return;
+    if (!selected || !canSubmit || submissionInFlight.current) return;
+    submissionInFlight.current = true;
     setSubmitting(true);
     setError('');
     setSuccess('');
@@ -70,10 +70,11 @@ export default function WithdrawPage() {
       setSuccess(`${parsedAmount} ${selected.currency} withdrawal submitted for processing.`);
       setAmount('');
       setAddress('');
-      await load();
+      window.dispatchEvent(new Event('wallet:updated'));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to submit withdrawal.');
     } finally {
+      submissionInFlight.current = false;
       setSubmitting(false);
     }
   };

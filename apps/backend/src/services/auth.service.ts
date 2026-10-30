@@ -144,8 +144,10 @@ export class AuthService {
       referredById = referrer.id;
     }
 
-    const buyerRole = await ensureAuthReferenceData(country);
-    const passwordHash = await argon2.hash(data.password);
+    const [buyerRole, passwordHash] = await Promise.all([
+      ensureAuthReferenceData(country),
+      argon2.hash(data.password),
+    ]);
     const user = await prisma.$transaction(async (tx) => {
       const createdUser = await tx.user.create({
         data: {
@@ -239,7 +241,7 @@ export class AuthService {
       return createdSession;
     });
 
-    const accessToken = this.generateAccessToken(user, session.id);
+    const accessToken = await this.generateAccessToken(user, session.id);
     return { accessToken, refreshToken, user: this.toClientUser(user) };
   }
 
@@ -257,21 +259,30 @@ export class AuthService {
     }
   }
 
-  static generateAccessToken(user: any, sessionId?: string) {
+  static generateAccessToken(user: any, sessionId?: string): Promise<string> {
     const minimumAccessLifetimeMs = 24 * 60 * 60 * 1000;
     const configuredAccessLifetimeMs = this.parseDurationToMs(config.jwt.accessExpiresIn);
     const accessLifetimeSeconds = Math.ceil(Math.max(configuredAccessLifetimeMs, minimumAccessLifetimeMs) / 1000);
-    return jwt.sign(
-      {
+    const payload = {
         id: user.id,
         email: user.email,
         tokenVersion: user.tokenVersion,
         roles: user.roles?.map((ur: any) => ur.role.name) || [],
         ...(sessionId ? { sessionId } : {})
-      },
-      config.jwt.accessSecret,
-      { expiresIn: accessLifetimeSeconds }
-    );
+    };
+    return new Promise((resolve, reject) => {
+      jwt.sign(payload, config.jwt.accessSecret, { expiresIn: accessLifetimeSeconds }, (error, token) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        if (!token) {
+          reject(new Error('JWT signing did not return a token'));
+          return;
+        }
+        resolve(token);
+      });
+    });
   }
 
   static async incrementFailedLogin(userId: string) {
@@ -330,7 +341,7 @@ export class AuthService {
       throw Object.assign(new Error('Invalid or expired refresh token'), { statusCode: 401 });
     }
 
-    const accessToken = this.generateAccessToken(session.user, session.id);
+    const accessToken = await this.generateAccessToken(session.user, session.id);
     return { accessToken, refreshToken: newRefreshToken };
   }
 

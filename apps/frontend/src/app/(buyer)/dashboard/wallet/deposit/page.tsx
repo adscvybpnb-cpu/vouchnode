@@ -1,6 +1,7 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { ArrowLeft, Check, Clipboard, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -46,49 +47,43 @@ const nativeNetwork = (code: string): DepositNetwork => {
 };
 
 export default function DepositPage() {
-  const [assets, setAssets] = useState<DepositAsset[]>([]);
-  const [currency, setCurrency] = useState('USDT');
+  const assetsQuery = useQuery({
+    queryKey: ['wallet', 'supported-assets'],
+    queryFn: () => walletService.getSupportedAssets(),
+    staleTime: 5 * 60_000,
+  });
+  const assets = useMemo<DepositAsset[]>(
+    () => (assetsQuery.data || []).map((asset) => ({
+      code: asset.code.trim().toUpperCase(),
+      name: asset.name,
+      network: nativeNetwork(asset.code.trim().toUpperCase()),
+    })),
+    [assetsQuery.data],
+  );
+  const [currency, setCurrency] = useState('');
   const [network, setNetwork] = useState<DepositNetwork>('TRC20');
   const [amount, setAmount] = useState('');
   const [session, setSession] = useState<DepositSession | null>(null);
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const submissionInFlight = useRef(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
 
   const selectedAsset = useMemo(() => assets.find((asset) => asset.code === currency), [assets, currency]);
+  const loading = assetsQuery.isPending;
+  const loadError = assetsQuery.error instanceof Error
+    ? assetsQuery.error.message
+    : assetsQuery.error ? 'Unable to load deposit assets.' : '';
   const availableNetworks = selectedAsset
     ? (['USDT', 'USDC'].includes(currency) ? NETWORKS.filter((item) => ['TRC20', 'BEP20', 'ERC20', 'POLYGON', 'ARBITRUM_ONE', 'BASE', 'OPTIMISM', 'SOLANA'].includes(item.value)) : NETWORKS.filter((item) => item.value === selectedAsset.network))
     : NETWORKS;
 
   useEffect(() => {
-    let active = true;
-    const loadAssets = async () => {
-      setLoading(true);
-      setError('');
-      try {
-        const supported = await walletService.getSupportedAssets();
-        if (!active) return;
-        const nextAssets = supported.map((asset) => ({
-          code: asset.code.trim().toUpperCase(),
-          name: asset.name,
-          network: nativeNetwork(asset.code.trim().toUpperCase())
-        }));
-        setAssets(nextAssets);
-        if (nextAssets.length > 0) {
-          const initial = nextAssets.find((asset) => asset.code === 'USDT') || nextAssets[0];
-          setCurrency(initial.code);
-          setNetwork(initial.network);
-        }
-      } catch (cause) {
-        if (active) setError(cause instanceof Error ? cause.message : 'Unable to load deposit assets.');
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-    void loadAssets();
-    return () => { active = false; };
-  }, []);
+    if (assets.length === 0) return;
+    const initial = assets.find((asset) => asset.code === 'USDT') || assets[0];
+    setCurrency((current) => current || initial.code);
+    setNetwork((current) => current || initial.network);
+  }, [assets]);
 
   const handleCurrencyChange = (value: string) => {
     setCurrency(value);
@@ -101,11 +96,13 @@ export default function DepositPage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (submissionInFlight.current) return;
     const parsedAmount = Number(amount);
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       setError(`Enter a valid ${currency} amount.`);
       return;
     }
+    submissionInFlight.current = true;
     setSubmitting(true);
     setError('');
     setSession(null);
@@ -114,6 +111,7 @@ export default function DepositPage() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to reserve a deposit address.');
     } finally {
+      submissionInFlight.current = false;
       setSubmitting(false);
     }
   };
@@ -141,7 +139,7 @@ export default function DepositPage() {
           <p className="mt-2 text-slate-400">Generate a dedicated deposit address for the asset and network you select.</p>
         </div>
 
-        {error && <div role="alert" className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-200">{error}</div>}
+        {(error || loadError) && <div role="alert" className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-200">{error || loadError}</div>}
 
         <div className="rounded-2xl border border-white/10 bg-[#141620] p-6 shadow-xl sm:p-8">
           {loading ? (

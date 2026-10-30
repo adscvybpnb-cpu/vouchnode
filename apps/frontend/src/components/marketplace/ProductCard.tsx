@@ -6,6 +6,8 @@ import type { Product } from '../../types/api.types';
 import { calculateDiscount, formatAmount } from '../../lib/format';
 import { useAuth } from '../../hooks/useAuth';
 
+const productImageBlur = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 48'%3E%3Crect width='64' height='48' fill='%23111923'/%3E%3C/svg%3E";
+
 interface ProductCardProps {
   product: Product;
   onBuyNow?: (product: Product) => void;
@@ -50,7 +52,7 @@ export function ProductCard({ product, onBuyNow, layout = 'grid', priority = fal
       <Link href={`/products/${product.slug}`} className={`group relative flex min-h-28 min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-[#111923] text-white shadow-[0_18px_40px_rgba(0,0,0,0.16)] transition-all sm:min-h-36 ${isOutOfStock ? 'opacity-70' : 'hover:border-cyan-300/50 hover:shadow-[0_20px_45px_rgba(34,211,238,0.10)]'}`}>
         <div className="relative min-h-28 w-28 shrink-0 overflow-hidden bg-[#0b1118] sm:min-h-36 sm:w-36">
           {badges}
-          {product.images?.[0] ? <Image src={product.images[0].url} alt={product.name} fill priority={priority} sizes="(max-width: 640px) 112px, 144px" className="object-cover transition-transform duration-500 group-hover:scale-105" /> : <div className="flex h-full items-center justify-center text-xs text-slate-500">No image</div>}
+          {product.images?.[0] ? <Image src={product.images[0].url} alt={product.name} fill priority={priority} loading={priority ? undefined : 'lazy'} placeholder="blur" blurDataURL={productImageBlur} sizes="(max-width: 640px) 112px, 144px" className="object-cover transition-transform duration-500 group-hover:scale-105" /> : <div className="flex h-full items-center justify-center text-xs text-slate-500">No image</div>}
         </div>
         <div className="flex min-w-0 flex-1 flex-col justify-between gap-2 p-3 sm:flex-row sm:items-center sm:gap-4 sm:p-4">
           <div className="min-w-0 flex-1">
@@ -82,7 +84,7 @@ export function ProductCard({ product, onBuyNow, layout = 'grid', priority = fal
     <Link href={`/products/${product.slug}`} className={`group relative block min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-[#111923] text-white shadow-[0_18px_40px_rgba(0,0,0,0.2)] transition-all ${isOutOfStock ? 'opacity-70' : 'hover:-translate-y-1 hover:border-cyan-300/50 hover:shadow-[0_20px_45px_rgba(34,211,238,0.12)]'}`}>
       {badges}
       <div className="relative aspect-[4/3] max-h-44 overflow-hidden bg-[#0b1118] sm:max-h-none">
-        {product.images?.[0] ? <Image src={product.images[0].url} alt={product.name} fill priority={priority} sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw" className="object-cover transition-transform duration-500 group-hover:scale-105" /> : <div className="flex h-full items-center justify-center text-slate-500">No image</div>}
+        {product.images?.[0] ? <Image src={product.images[0].url} alt={product.name} fill priority={priority} loading={priority ? undefined : 'lazy'} placeholder="blur" blurDataURL={productImageBlur} sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw" className="object-cover transition-transform duration-500 group-hover:scale-105" /> : <div className="flex h-full items-center justify-center text-slate-500">No image</div>}
       </div>
       <div className="flex min-h-[214px] flex-col p-4">
         <div className="flex items-start justify-between gap-2">

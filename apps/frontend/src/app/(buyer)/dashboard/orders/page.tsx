@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { ChevronRight, PackageSearch } from 'lucide-react';
 import { orderService } from '@/services/order.service';
+import { useAuthStore } from '@/store/auth.store';
 
 type BuyerOrder = {
   id: string;
@@ -44,25 +45,18 @@ function formatPrice(order: BuyerOrder) {
 }
 
 export default function BuyerOrdersPage() {
-  const [orders, setOrders] = useState<BuyerOrder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    let active = true;
-    void orderService.getMyOrders()
-      .then((response) => {
-        if (!active) return;
-        setOrders(response as BuyerOrder[]);
-      })
-      .catch((requestError: unknown) => {
-        if (active) setError(requestError instanceof Error ? requestError.message : 'Unable to load your orders.');
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => { active = false; };
-  }, []);
+  const userId = useAuthStore((state) => state.user?.id);
+  const ordersQuery = useQuery({
+    queryKey: ['orders', 'buyer', userId ?? 'anonymous'],
+    queryFn: () => orderService.getMyOrders() as Promise<BuyerOrder[]>,
+    enabled: Boolean(userId),
+    staleTime: 15_000,
+  });
+  const orders = ordersQuery.data ?? [];
+  const loading = ordersQuery.isPending;
+  const error = ordersQuery.error instanceof Error
+    ? ordersQuery.error.message
+    : ordersQuery.error ? 'Unable to load your orders.' : '';
 
   return (
     <section className="mx-auto w-full max-w-5xl text-white">

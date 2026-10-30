@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -208,6 +208,7 @@ function AdsView({ profile, loading, error, onPublished, editOffer }: { profile:
   const [exchangeRate, setExchangeRate] = useState('');
   const [terms, setTerms] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const publishInFlight = useRef(false);
   const [formError, setFormError] = useState('');
   const [deletingId, setDeletingId] = useState('');
 
@@ -283,6 +284,7 @@ function AdsView({ profile, loading, error, onPublished, editOffer }: { profile:
 
   const publish = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (publishInFlight.current) return;
     if (!user) {
       router.push('/login?redirect=/p2p-offers');
       return;
@@ -296,6 +298,7 @@ function AdsView({ profile, loading, error, onPublished, editOffer }: { profile:
       setFormError('The minimum trading limit must be at least $10 USD.');
       return;
     }
+    publishInFlight.current = true;
     setSubmitting(true);
     setFormError('');
     try {
@@ -322,6 +325,7 @@ function AdsView({ profile, loading, error, onPublished, editOffer }: { profile:
           : message || 'Unable to publish ad.'
       );
     } finally {
+      publishInFlight.current = false;
       setSubmitting(false);
     }
   };
@@ -402,16 +406,36 @@ export default function P2POffersPage() {
   const [paymentDrawerOpen, setPaymentDrawerOpen] = useState(false);
   const [giftCardSearch, setGiftCardSearch] = useState('');
   const [activeNavigation, setActiveNavigation] = useState<'Profile' | 'Ads' | 'Orders' | 'P2P'>('P2P');
-  const [profile, setProfile] = useState<P2PProfile | null>(null);
-  const [profileLoading, setProfileLoading] = useState(false);
-  const [profileError, setProfileError] = useState('');
-  const [orders, setOrders] = useState<P2POrder[]>([]);
-  const [ordersLoading, setOrdersLoading] = useState(false);
-  const [ordersError, setOrdersError] = useState('');
   const { isAuthenticated, user } = useAuth();
   const [editOffer, setEditOffer] = useState<P2POffer | null>(null);
   const { socket: presenceSocket } = useSocket('/presence');
   const queryClient = useQueryClient();
+  const profileQueryKey = useMemo(
+    () => ['p2p', 'profile', user?.id ?? 'anonymous'] as const,
+    [user?.id],
+  );
+  const profileQuery = useQuery({
+    queryKey: profileQueryKey,
+    queryFn: () => p2pService.getProfile(),
+    enabled: isAuthenticated && (activeNavigation === 'Profile' || activeNavigation === 'Ads'),
+    staleTime: 30_000,
+  });
+  const ordersQuery = useQuery({
+    queryKey: ['p2p', 'orders', user?.id ?? 'anonymous'],
+    queryFn: () => p2pService.getOrders(),
+    enabled: isAuthenticated && activeNavigation === 'Orders',
+    staleTime: 15_000,
+  });
+  const profile = profileQuery.data ?? null;
+  const profileLoading = profileQuery.isLoading;
+  const profileError = profileQuery.error instanceof Error
+    ? profileQuery.error.message
+    : profileQuery.error ? 'Unable to load profile.' : '';
+  const orders = ordersQuery.data ?? [];
+  const ordersLoading = ordersQuery.isLoading;
+  const ordersError = ordersQuery.error instanceof Error
+    ? ordersQuery.error.message
+    : ordersQuery.error ? 'Unable to load orders.' : '';
   const offerType = marketSide === 'buy' ? 'BUY' : 'SELL';
   const offersQueryKey = useMemo(
     () => ['p2p', 'offers', offerType, selectedAsset, selectedPaymentMethod] as const,
@@ -458,7 +482,7 @@ export default function P2POffersPage() {
       queryClient.setQueriesData<P2POffer[]>({ queryKey: ['p2p', 'offers'] }, (current) => current?.map((offer) => offer.userId === payload.userId
         ? { ...offer, isOnline: payload.isOnline!, isActiveWithinFiveMinutes: payload.isOnline! || offer.isActiveWithinFiveMinutes }
         : offer));
-      setProfile((current) => current && payload.userId === user?.id
+      queryClient.setQueryData<P2PProfile>(profileQueryKey, (current) => current && payload.userId === user?.id
         ? { ...current, isOnline: payload.isOnline! }
         : current);
     };
@@ -480,7 +504,7 @@ export default function P2POffersPage() {
             avatarUrl: payload.profile.avatarUrl,
           }
         : offer));
-      setProfile((current) => current?.id === payload.userId
+      queryClient.setQueryData<P2PProfile>(profileQueryKey, (current) => current?.id === payload.userId
         ? {
             ...current,
             username: payload.profile.username,
@@ -493,17 +517,7 @@ export default function P2POffersPage() {
     return () => {
       presenceSocket.off('user:profile-updated', handleProfileUpdate);
     };
-  }, [presenceSocket, queryClient]);
-  useEffect(() => {
-    if (activeNavigation === 'Profile' || activeNavigation === 'Ads') {
-      setProfileLoading(true); setProfileError('');
-      void p2pService.getProfile().then(setProfile).catch((err) => setProfileError(err instanceof Error ? err.message : 'Unable to load profile.')).finally(() => setProfileLoading(false));
-    }
-    if (activeNavigation === 'Orders') {
-      setOrdersLoading(true); setOrdersError('');
-      void p2pService.getOrders().then(setOrders).catch((err) => setOrdersError(err instanceof Error ? err.message : 'Unable to load orders.')).finally(() => setOrdersLoading(false));
-    }
-  }, [activeNavigation]);
+  }, [presenceSocket, profileQueryKey, queryClient]);
 
   const openTradeForm = (offer: P2POffer) => {
     if (offer.userId === user?.id) {
@@ -516,7 +530,7 @@ export default function P2POffersPage() {
 
   return (
     <main className="min-h-screen bg-[#07090f] px-4 pb-28 pt-8 text-white sm:px-6 lg:px-8">
-      {activeNavigation === 'Profile' ? <MerchantProfileView profile={profile} loading={profileLoading} error={profileError} currentUser={user} /> : activeNavigation === 'Ads' ? <AdsView profile={profile} loading={profileLoading} error={profileError} editOffer={editOffer} onPublished={(deletedId) => { setEditOffer(null); if (deletedId) setProfile((current) => current ? { ...current, ads: current.ads.filter((ad) => ad.id !== deletedId) } : current); setProfileLoading(true); void p2pService.getProfile().then(setProfile).catch((err) => setProfileError(err instanceof Error ? err.message : 'Unable to refresh ads.')).finally(() => setProfileLoading(false)); }} /> : activeNavigation === 'Orders' ? <OrdersView orders={orders} loading={ordersLoading} error={ordersError} /> : <div className="mx-auto max-w-6xl">
+      {activeNavigation === 'Profile' ? <MerchantProfileView profile={profile} loading={profileLoading} error={profileError} currentUser={user} /> : activeNavigation === 'Ads' ? <AdsView profile={profile} loading={profileLoading} error={profileError} editOffer={editOffer} onPublished={(deletedId) => { setEditOffer(null); if (deletedId) queryClient.setQueryData<P2PProfile>(profileQueryKey, (current) => current ? { ...current, ads: current.ads.filter((ad) => ad.id !== deletedId) } : current); void queryClient.invalidateQueries({ queryKey: profileQueryKey }); }} /> : activeNavigation === 'Orders' ? <OrdersView orders={orders} loading={ordersLoading} error={ordersError} /> : <div className="mx-auto max-w-6xl">
         <div className="mb-8 flex flex-wrap items-end justify-between gap-5">
           <div>
             <p className="text-sm font-medium text-emerald-300">Fast, protected trading</p>
@@ -564,7 +578,13 @@ export default function P2POffersPage() {
         </div>
         {error && <div className="mb-5 rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-200">{error}</div>}
         <div className="w-full space-y-2 overflow-hidden">
-          {loading ? <div className="rounded-2xl border border-white/10 bg-[#11141d] p-12 text-center text-slate-400">Loading live offers...</div> : offers.length === 0 ? <div className="rounded-2xl border border-white/10 bg-[#11141d] p-12 text-center text-slate-400">No active merchant offers match these filters.</div> : offers.map((offer) => {
+          {loading ? Array.from({ length: 4 }, (_, index) => (
+            <div key={`offer-skeleton-${index}`} aria-hidden="true" className="flex min-h-[92px] animate-pulse items-center justify-between gap-4 rounded-xl border border-white/10 bg-[#11141d] p-4">
+              <div className="flex items-center gap-3"><span className="h-10 w-10 rounded-full bg-white/10" /><div className="space-y-2"><div className="h-3 w-28 rounded bg-white/10" /><div className="h-2.5 w-40 rounded bg-white/5" /></div></div>
+              <div className="space-y-2"><div className="h-2.5 w-12 rounded bg-white/5" /><div className="h-4 w-28 rounded bg-white/10" /></div>
+              <div className="h-9 w-16 rounded-lg bg-white/10" />
+            </div>
+          )) : offers.length === 0 ? <div className="rounded-2xl border border-white/10 bg-[#11141d] p-12 text-center text-slate-400">No active merchant offers match these filters.</div> : offers.map((offer) => {
             const ownProfile = offer.userId === user?.id ? user : null;
             const merchantName = ownProfile ? ownProfile.displayName || ownProfile.username : offer.merchantName;
             const merchantUsername = ownProfile?.username || offer.username;

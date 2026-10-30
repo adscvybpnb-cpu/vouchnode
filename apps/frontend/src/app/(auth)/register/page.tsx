@@ -1,6 +1,6 @@
 'use client';
 import React from 'react'; // needed for React.forwardRef
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -270,6 +270,7 @@ export default function RegisterPage() {
   const [step, setStep]           = useState<1 | 2 | 'success'>(1);
   const [step1Data, setStep1Data] = useState<Step1Values | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const registrationInFlight = useRef(false);
 
   // Global banner error (server error that isn't field-specific)
   const [bannerError, setBannerError] = useState<string | null>(null);
@@ -301,8 +302,9 @@ export default function RegisterPage() {
 
   // ── Step 2: submit to backend ──────────────────────────────────────────────
   const onStep2 = async (data: Step2Values) => {
-    if (!step1Data) return;
+    if (!step1Data || registrationInFlight.current) return;
 
+    registrationInFlight.current = true;
     setBannerError(null);
     setBackendErrors({});
     setIsLoading(true);
@@ -387,6 +389,7 @@ export default function RegisterPage() {
       }
 
     } finally {
+      registrationInFlight.current = false;
       setIsLoading(false); // ALWAYS runs — button never stays frozen
     }
   };

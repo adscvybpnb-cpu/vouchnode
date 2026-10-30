@@ -2,6 +2,7 @@
 
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Camera, ExternalLink, Globe, Lock, Mail, MapPin, MessageCircle, Save, ShieldCheck, Twitter, Github, Linkedin, User as UserIcon } from 'lucide-react';
 import type { Area } from 'react-easy-crop';
 import 'react-easy-crop/react-easy-crop.css';
@@ -13,6 +14,7 @@ import { useAuthStore } from '@/store/auth.store';
 import type { User } from '@/store/auth.store';
 import { telegramService } from '@/services/telegram.service';
 import { API_ORIGIN } from '@/lib/constants';
+import { currentUserQueryKey, useCurrentUser } from '@/hooks/useCurrentUser';
 
 const Cropper = dynamic(() => import('react-easy-crop'), {
   ssr: false,
@@ -66,19 +68,22 @@ const LANGUAGES = [
 
 export default function ProfilePage() {
   const { user, updateUser } = useAuthStore();
-  const [profile, setProfile] = useState<ProfileForm>({
-    displayName: '',
-    username: '',
-    email: '',
-    bio: '',
-    countryCode: '',
-    timezone: '',
-    language: 'en',
-    twitterUrl: '',
-    linkedinUrl: '',
-    githubUrl: '',
-    websiteUrl: '',
-  });
+  useCurrentUser(Boolean(user));
+  const queryClient = useQueryClient();
+  const profileQueryKey = currentUserQueryKey(user?.id ?? 'anonymous');
+  const [profile, setProfile] = useState<ProfileForm>(() => ({
+    displayName: user?.displayName || user?.username || '',
+    username: user?.username || '',
+    email: user?.email || '',
+    bio: user?.bio || '',
+    countryCode: user?.countryCode || '',
+    timezone: user?.timezone || '',
+    language: user?.language || 'en',
+    twitterUrl: user?.twitterUrl || '',
+    linkedinUrl: user?.linkedinUrl || '',
+    githubUrl: user?.githubUrl || '',
+    websiteUrl: user?.websiteUrl || '',
+  }));
   const [password, setPassword] = useState<PasswordForm>({
     currentPassword: '',
     newPassword: '',
@@ -96,14 +101,23 @@ export default function ProfilePage() {
   const [isSavingUsername, setIsSavingUsername] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [isLoadingTelegram, setIsLoadingTelegram] = useState(false);
   const [isLinkingTelegram, setIsLinkingTelegram] = useState(false);
-  const [telegramLinked, setTelegramLinked] = useState(false);
   const [telegramLink, setTelegramLink] = useState<string | null>(null);
-  const [telegramError, setTelegramError] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<'profile' | 'security'>('profile');
+  const telegramStatusQuery = useQuery({
+    queryKey: ['user', user?.id ?? 'anonymous', 'telegram-link-status'],
+    queryFn: () => telegramService.getLinkStatus(),
+    enabled: activeTab === 'security' && Boolean(user?.id),
+    staleTime: 15_000,
+    refetchInterval: telegramLink ? 4_000 : false,
+  });
+  const telegramLinked = telegramStatusQuery.data?.linked ?? false;
+  const isLoadingTelegram = telegramStatusQuery.isLoading;
+  const telegramError = telegramStatusQuery.error instanceof Error
+    ? telegramStatusQuery.error.message
+    : '';
   const isMounted = useRef(true);
   const avatarUploadInFlight = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -148,40 +162,19 @@ export default function ProfilePage() {
   }, [user?.usernameChangedAt]);
 
   useEffect(() => {
-    if (activeTab !== 'security') return;
-    let cancelled = false;
-    const refreshTelegramStatus = async () => {
-      try {
-        const status = await telegramService.getLinkStatus();
-        if (!cancelled) {
-          setTelegramLinked(status.linked);
-          if (status.linked) setTelegramLink(null);
-          setTelegramError('');
-        }
-      } catch (reason) {
-        if (!cancelled) setTelegramError(reason instanceof Error ? reason.message : 'Unable to load Telegram link status.');
-      } finally {
-        if (!cancelled) setIsLoadingTelegram(false);
-      }
-    };
-
-    setIsLoadingTelegram(true);
-    void refreshTelegramStatus();
-    const interval = telegramLink ? window.setInterval(() => void refreshTelegramStatus(), 4000) : undefined;
-    return () => {
-      cancelled = true;
-      if (interval !== undefined) window.clearInterval(interval);
-    };
-  }, [activeTab, telegramLink]);
+    if (telegramLinked) setTelegramLink(null);
+  }, [telegramLinked]);
 
   const handleTelegramLink = async () => {
-    setTelegramError('');
     setIsLinkingTelegram(true);
     try {
       const link = await telegramService.createLink();
       setTelegramLink(link.url);
+      await queryClient.invalidateQueries({
+        queryKey: ['user', user?.id ?? 'anonymous', 'telegram-link-status'],
+      });
     } catch (reason) {
-      setTelegramError(reason instanceof Error ? reason.message : 'Unable to create a Telegram link.');
+      setError(reason instanceof Error ? reason.message : 'Unable to create a Telegram link.');
     } finally {
       setIsLinkingTelegram(false);
     }
@@ -251,14 +244,22 @@ export default function ProfilePage() {
       loadedImage.src = sourceUrl;
     });
     const canvas = document.createElement('canvas');
-    canvas.width = area.width;
-    canvas.height = area.height;
+    const outputScale = Math.min(1, 512 / Math.max(area.width, area.height));
+    canvas.width = Math.max(1, Math.round(area.width * outputScale));
+    canvas.height = Math.max(1, Math.round(area.height * outputScale));
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Unable to prepare the cropped image.');
-    context.drawImage(image, area.x, area.y, area.width, area.height, 0, 0, area.width, area.height);
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, sourceFile.type || 'image/jpeg', 0.92));
+    context.drawImage(image, area.x, area.y, area.width, area.height, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', 0.82));
     if (!blob) throw new Error('Unable to create the cropped image.');
-    return new File([blob], sourceFile.name, { type: blob.type });
+    const outputType = blob.type === 'image/webp' ? 'image/webp' : 'image/jpeg';
+    const outputBlob = blob.type === outputType
+      ? blob
+      : await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, outputType, 0.82));
+    if (!outputBlob) throw new Error('Unable to compress the cropped image.');
+    const extension = outputType === 'image/webp' ? 'webp' : 'jpg';
+    const baseName = sourceFile.name.replace(/\.[^.]+$/, '');
+    return new File([outputBlob], `${baseName}.${extension}`, { type: outputType });
   };
 
   const saveCroppedAvatar = async () => {
@@ -275,6 +276,9 @@ export default function ProfilePage() {
       if (!isMounted.current) return;
       const absoluteAvatarUrl = resolveAvatarUrl(response.data.avatarUrl);
       updateUser({ avatarUrl: absoluteAvatarUrl });
+      queryClient.setQueryData<User>(profileQueryKey, (current) => current
+        ? { ...current, avatarUrl: absoluteAvatarUrl }
+        : current);
       setAvatarPreview(absoluteAvatarUrl);
       setAvatarLoadFailed(false);
       setMessage('Profile picture updated successfully.');
@@ -293,34 +297,54 @@ export default function ProfilePage() {
     setMessage('');
     setError('');
 
+    const optimisticProfile = {
+      displayName: profile.displayName.trim(),
+      bio: profile.bio.trim(),
+      countryCode: profile.countryCode.trim(),
+      timezone: profile.timezone.trim(),
+      language: profile.language.trim(),
+      twitterUrl: profile.twitterUrl.trim(),
+      linkedinUrl: profile.linkedinUrl.trim(),
+      githubUrl: profile.githubUrl.trim(),
+      websiteUrl: profile.websiteUrl.trim(),
+    };
+    const previousProfile = useAuthStore.getState().user;
+    updateUser(optimisticProfile);
+    queryClient.setQueryData<User>(profileQueryKey, (current) => current
+      ? { ...current, ...optimisticProfile }
+      : current);
+
     try {
       const updateData: any = {
-        displayName: profile.displayName.trim(),
-        bio: profile.bio.trim() || null,
-        countryCode: profile.countryCode.trim() || null,
-        timezone: profile.timezone.trim() || null,
-        language: profile.language.trim() || null,
-        twitterUrl: profile.twitterUrl.trim() || null,
-        linkedinUrl: profile.linkedinUrl.trim() || null,
-        githubUrl: profile.githubUrl.trim() || null,
-        websiteUrl: profile.websiteUrl.trim() || null,
+        displayName: optimisticProfile.displayName,
+        bio: optimisticProfile.bio || null,
+        countryCode: optimisticProfile.countryCode || null,
+        timezone: optimisticProfile.timezone || null,
+        language: optimisticProfile.language || null,
+        twitterUrl: optimisticProfile.twitterUrl || null,
+        linkedinUrl: optimisticProfile.linkedinUrl || null,
+        githubUrl: optimisticProfile.githubUrl || null,
+        websiteUrl: optimisticProfile.websiteUrl || null,
       };
 
       const response = await apiClient.patch('/users/profile', updateData);
       if (response.error) throw new Error(response.error);
-      updateUser({
-        displayName: profile.displayName.trim(),
-        bio: profile.bio.trim(),
-        countryCode: profile.countryCode.trim(),
-        timezone: profile.timezone.trim(),
-        language: profile.language.trim(),
-        twitterUrl: profile.twitterUrl.trim(),
-        linkedinUrl: profile.linkedinUrl.trim(),
-        githubUrl: profile.githubUrl.trim(),
-        websiteUrl: profile.websiteUrl.trim(),
-      });
       setMessage('Profile changes saved successfully.');
     } catch (err) {
+      if (previousProfile) {
+        updateUser({
+          displayName: previousProfile.displayName,
+          bio: previousProfile.bio,
+          countryCode: previousProfile.countryCode,
+          timezone: previousProfile.timezone,
+          language: previousProfile.language,
+          twitterUrl: previousProfile.twitterUrl,
+          linkedinUrl: previousProfile.linkedinUrl,
+          githubUrl: previousProfile.githubUrl,
+          websiteUrl: previousProfile.websiteUrl,
+        });
+      }
+      queryClient.setQueryData<User>(profileQueryKey, previousProfile ?? undefined);
       setError(err instanceof Error ? err.message : 'Unable to save profile changes.');
     } finally {
       setIsSaving(false);
@@ -340,6 +364,9 @@ export default function ProfilePage() {
       if (response.error) throw new Error(response.error);
       if (!response.data) throw new Error('Username update returned no profile data.');
       updateUser(response.data);
+      queryClient.setQueryData<User>(profileQueryKey, (current) => current
+        ? { ...current, ...response.data }
+        : current);
       setCurrentTime(Date.now());
       setMessage('Username updated successfully.');
     } catch (reason) {

@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -15,6 +15,7 @@ export default function LoginPage() {
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState('');
   const [resetTurnstile, setResetTurnstile] = useState<() => void>(() => () => {});
+  const submitInFlight = useRef(false);
 
   useEffect(() => {
     const message = window.sessionStorage.getItem('account-restriction-message');
@@ -25,6 +26,7 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitInFlight.current) return;
     setFormError(null);
 
     if (!email.trim() || !password) {
@@ -33,10 +35,12 @@ export default function LoginPage() {
     }
 
     try {
+      submitInFlight.current = true;
       await login({ email: email.trim().toLowerCase(), password, turnstileToken });
       setIsRedirecting(true);
       router.push('/');
     } catch (err: any) {
+      submitInFlight.current = false;
       setIsRedirecting(false);
       let msg: string;
       try {

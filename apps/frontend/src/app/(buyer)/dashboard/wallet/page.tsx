@@ -5,10 +5,10 @@ import Link from 'next/link';
 import { ArrowRightLeft, Check, CircleDollarSign, Clock3, Copy, Download, Gift, Loader2, Plus, RefreshCw, Send, ShieldCheck, Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { apiClient } from '@/services/api.client';
 import { useFirstDepositBonusEligibility } from '@/hooks/useFirstDepositBonusEligibility';
 import { walletService, type DepositNetwork } from '@/services/wallet.service';
-import type { AssetBalance, Deposit, PortfolioSummary, Wallet } from '@/types/api.types';
+import { useWalletSnapshot } from '@/hooks/useWalletSnapshot';
+import type { AssetBalance, Deposit } from '@/types/api.types';
 import { ResponsiveRowCard } from '@/components/layout/ResponsiveRowCard';
 
 const SUPPORTED_ASSETS = [
@@ -90,6 +90,7 @@ const nativeDepositNetwork = (currency: string): DepositNetwork => {
 };
 
 export default function WalletPage() {
+  const walletQuery = useWalletSnapshot();
   const {
     data: bonusEligibility,
     error: bonusEligibilityError,
@@ -97,8 +98,7 @@ export default function WalletPage() {
     refetch: refetchBonusEligibility,
     showPromotion,
   } = useFirstDepositBonusEligibility();
-  const [wallet, setWallet] = useState<Wallet | null>(null);
-  const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(null);
+  const portfolio = walletQuery.data?.portfolio ?? null;
   const [selected, setSelected] = useState<AssetBalance | null>(null);
   const [action, setAction] = useState<Action | null>(null);
   const [deposit, setDeposit] = useState<DepositResponse | null>(null);
@@ -110,14 +110,14 @@ export default function WalletPage() {
   const [amount, setAmount] = useState('');
   const [address, setAddress] = useState('');
   const [swapTo, setSwapTo] = useState('USDT');
-  const [loading, setLoading] = useState(true);
+  const loading = walletQuery.isPending;
   const [busy, setBusy] = useState(false);
+  const actionInFlight = useRef(false);
   const [swapPending, setSwapPending] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedAmount, setCopiedAmount] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const loadingRef = useRef(false);
 
   const assets = useMemo(() => SUPPORTED_ASSETS.map((definition) => {
     const current = portfolio?.assets.find((asset) => asset.currency?.trim().toUpperCase() === definition.code);
@@ -141,45 +141,27 @@ export default function WalletPage() {
       network: definition.code === 'USDT' ? 'TRC20' : 'mainnet'
     };
   }), [portfolio]);
-  const totalValue = Number(portfolio?.totalUsdBalance ?? wallet?.totalUsdBalance ?? 0);
+  const totalValue = Number(portfolio?.totalUsdBalance ?? 0);
   const total = Number.isFinite(totalValue) ? totalValue : 0;
+  const walletQueryError = walletQuery.error instanceof Error
+    ? walletQuery.error.message
+    : walletQuery.error ? 'Unable to load wallet.' : '';
   const usdtAsset = assets.find((asset) => asset.currency === 'USDT');
   const depositAddress = deposit?.address || deposit?.depositAddress || '';
   const sessionAddress = depositSession?.assignedAddress || '';
   const activeDepositAddress = sessionAddress || depositAddress;
 
   const load = async () => {
-    if (loadingRef.current) return;
-    loadingRef.current = true;
-    setLoading(true);
     setError('');
-    try {
-      const [base, next] = await Promise.all([apiClient.get<Wallet>('/wallet'), walletService.getPortfolio()]);
-      if (base.error) throw new Error(base.error);
-      setWallet(base.data || null);
-      setPortfolio(next);
-      window.dispatchEvent(new Event('wallet:updated'));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load wallet.');
-    } finally {
-      loadingRef.current = false;
-      setLoading(false);
-    }
+    const result = await walletQuery.refetch();
+    if (result.error) setError(result.error instanceof Error ? result.error.message : 'Unable to load wallet.');
   };
-
-  useEffect(() => { void load(); }, []);
 
   useEffect(() => {
     if (bonusEligibilityError) {
       console.error('Unable to check first-deposit wallet promotion eligibility:', bonusEligibilityError);
     }
   }, [bonusEligibilityError]);
-
-  useEffect(() => {
-    const refreshAfterP2PCompletion = () => void load();
-    window.addEventListener('p2p:wallet-updated', refreshAfterP2PCompletion);
-    return () => window.removeEventListener('p2p:wallet-updated', refreshAfterP2PCompletion);
-  }, []);
 
   const openDeposit = async (asset: AssetBalance) => {
     setSelected(asset);
@@ -251,7 +233,8 @@ export default function WalletPage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!selected || !action) return;
+    if (!selected || !action || actionInFlight.current) return;
+    actionInFlight.current = true;
     setBusy(true);
     setError('');
     setMessage('');
@@ -262,16 +245,17 @@ export default function WalletPage() {
         }
         await walletService.withdraw({ currency: selected.currency, amount: Number(amount), destinationAddress: address, network: selected.network ?? undefined });
         setMessage(`${selected.currency} withdrawal submitted for review.`);
+        window.dispatchEvent(new Event('wallet:updated'));
       } else if (action === 'swap') {
         const result = await walletService.swapAsset(selected.currency, swapTo, Number(amount));
         setMessage(`Converted ${result.amount} ${result.fromAsset} to ${result.receivedAmount} ${result.toAsset} at the live rate.`);
         window.dispatchEvent(new Event('wallet:updated'));
       }
       setAction(null);
-      await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Wallet action failed.');
     } finally {
+      actionInFlight.current = false;
       setBusy(false);
     }
   };
@@ -307,7 +291,7 @@ export default function WalletPage() {
           <Button variant="outline" onClick={() => void load()} className="border-white/10 text-slate-300 hover:bg-white/5"><RefreshCw className="mr-2 h-4 w-4" />Refresh balances</Button>
         </div>
       </div>
-      {(message || error) && <div className={`rounded-xl border px-4 py-3 text-sm ${error ? 'border-red-400/30 bg-red-400/10 text-red-200' : 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200'}`}>{error || message}</div>}
+      {(message || error || walletQueryError) && <div className={`rounded-xl border px-4 py-3 text-sm ${error || walletQueryError ? 'border-red-400/30 bg-red-400/10 text-red-200' : 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200'}`}>{error || walletQueryError || message}</div>}
 
       <section className="h-32 overflow-hidden rounded-2xl border border-white/10 bg-[#141620] p-4 text-sm text-slate-300" aria-live="polite">
           <div className="flex flex-wrap items-center justify-between gap-3">

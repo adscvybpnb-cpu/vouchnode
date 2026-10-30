@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { ArrowDownLeft, ArrowLeft, ArrowUpRight, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { walletService } from '@/services/wallet.service';
-import type { LedgerEntry } from '@/types/api.types';
+import { useAuthStore } from '@/store/auth.store';
+import { walletTransactionsQueryKey } from '@/hooks/useWalletSnapshot';
 
 const typeLabels: Record<string, string> = {
   DEPOSIT: 'Deposit',
@@ -27,23 +28,18 @@ const statusClasses: Record<string, string> = {
 };
 
 export default function WalletTransactionsPage() {
-  const [entries, setEntries] = useState<LedgerEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  const load = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      setEntries(await walletService.getTransactionHistory());
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to load transaction history.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { void load(); }, []);
+  const userId = useAuthStore((state) => state.user?.id);
+  const historyQuery = useQuery({
+    queryKey: walletTransactionsQueryKey(userId ?? 'anonymous'),
+    queryFn: () => walletService.getTransactionHistory(),
+    enabled: Boolean(userId),
+    staleTime: 15_000,
+  });
+  const entries = historyQuery.data ?? [];
+  const loading = historyQuery.isPending;
+  const error = historyQuery.error instanceof Error
+    ? historyQuery.error.message
+    : historyQuery.error ? 'Unable to load transaction history.' : '';
 
   return (
     <main className="min-h-screen bg-[#07090f] px-4 pb-20 pt-8 text-white sm:px-6 lg:px-8">
@@ -56,7 +52,7 @@ export default function WalletTransactionsPage() {
             <h1 className="text-3xl font-black tracking-tight">Transaction History</h1>
             <p className="mt-2 text-sm text-slate-400">A unified record of deposits, withdrawals, trades, refunds, and internal transfers.</p>
           </div>
-          <Button variant="outline" onClick={() => void load()} disabled={loading} className="border-white/10 text-slate-300 hover:bg-white/5">
+          <Button variant="outline" onClick={() => void historyQuery.refetch()} disabled={historyQuery.isFetching} className="border-white/10 text-slate-300 hover:bg-white/5">
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
           </Button>
         </div>

@@ -1,22 +1,25 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { ArrowLeft, Loader2, Star } from 'lucide-react';
 import { orderService } from '@/services/order.service';
+import { useAuthStore } from '@/store/auth.store';
 import type { Order } from '@/types/api.types';
 
 export default function ReviewsPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    void orderService.getMyOrders({ status: 'COMPLETED' })
-      .then(setOrders)
-      .catch((cause) => setError(cause instanceof Error ? cause.message : 'Unable to load completed orders.'))
-      .finally(() => setLoading(false));
-  }, []);
+  const userId = useAuthStore((state) => state.user?.id);
+  const completedOrdersQuery = useQuery({
+    queryKey: ['orders', 'buyer', userId ?? 'anonymous', 'completed'],
+    queryFn: () => orderService.getMyOrders({ status: 'COMPLETED' }),
+    enabled: Boolean(userId),
+    staleTime: 15_000,
+  });
+  const orders = (completedOrdersQuery.data ?? []) as Order[];
+  const loading = completedOrdersQuery.isPending;
+  const error = completedOrdersQuery.error instanceof Error
+    ? completedOrdersQuery.error.message
+    : completedOrdersQuery.error ? 'Unable to load completed orders.' : '';
 
   return (
     <main className="mx-auto max-w-5xl space-y-6 px-4 py-8 text-white sm:px-6">

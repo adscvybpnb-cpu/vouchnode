@@ -1,20 +1,47 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { hasUsableAccessToken, useAuthStore } from '../store/auth.store';
-import { authService } from '../services/auth.service';
 import { useSocket } from '../hooks/useSocket';
 import { usePathname } from 'next/navigation';
 import { usePushNotifications, usePushSoundListener } from '../hooks/usePushNotifications';
 import { API_URL } from '../lib/constants';
 import { getReferralCode } from '../lib/referral-attribution';
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import { walletSnapshotQueryKey, walletTransactionsQueryKey } from '../hooks/useWalletSnapshot';
 
 const ReactQueryDevtools = dynamic(
   () => import('@tanstack/react-query-devtools').then((module) => module.ReactQueryDevtools),
   { ssr: false },
 );
+
+function SessionProfileRevalidator({ enabled }: { enabled: boolean }) {
+  useCurrentUser(enabled);
+  return null;
+}
+
+function WalletCacheRevalidator() {
+  const userId = useAuthStore((state) => state.user?.id);
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!userId) return;
+    const refresh = () => {
+      void queryClient.invalidateQueries({ queryKey: walletSnapshotQueryKey(userId) });
+      void queryClient.invalidateQueries({ queryKey: walletTransactionsQueryKey(userId) });
+    };
+    window.addEventListener('wallet:updated', refresh);
+    window.addEventListener('p2p:wallet-updated', refresh);
+    return () => {
+      window.removeEventListener('wallet:updated', refresh);
+      window.removeEventListener('p2p:wallet-updated', refresh);
+    };
+  }, [queryClient, userId]);
+
+  return null;
+}
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
@@ -27,7 +54,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     },
   }));
 
-  const { accessToken, isAuthenticated, updateUser } = useAuthStore();
+  const { accessToken, isAuthenticated } = useAuthStore();
   const hasSession = isAuthenticated && hasUsableAccessToken(accessToken);
   const pathname = usePathname() ?? '';
   const isAdminRoute = pathname === '/admin' || pathname.startsWith('/admin/');
@@ -77,19 +104,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, [presenceSocket, queryClient]);
 
   useEffect(() => {
-    // Revalidate persisted session data when entering user-facing areas so
-    // server-side role/KYC decisions become available without re-login.
-    const shouldRefreshProfile = pathname.startsWith('/seller') || pathname.startsWith('/dashboard');
-    if (hasSession && shouldRefreshProfile) {
-      authService.getMe().then(user => {
-        if (user) updateUser(user);
-      }).catch(() => {
-        // The API client clears auth state on 401; other errors must not block rendering.
-      });
-    }
-  }, [hasSession, pathname, updateUser]);
-
-  useEffect(() => {
     const clearQueryCache = () => queryClient.clear();
     window.addEventListener('auth:cleared', clearQueryCache);
     return () => window.removeEventListener('auth:cleared', clearQueryCache);
@@ -97,6 +111,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <SessionProfileRevalidator
+        enabled={hasSession && (pathname.startsWith('/seller') || pathname.startsWith('/dashboard'))}
+      />
+      <WalletCacheRevalidator />
       {children}
       {process.env.NODE_ENV === 'development' && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
