@@ -191,8 +191,15 @@ file outside the repository. Never commit production environment files.
 - The frontend uses a system font stack; production builds do not fetch Google
   Fonts or require external font access.
 - The service worker keeps a bounded cache of the offline shell and static
-  public assets. It does not archive authenticated routes or API responses, so
+  public assets. Immutable Next.js assets are cache-first; previously cached
+  public images/fonts are served immediately while revalidating in the
+  background. It does not archive authenticated routes or API responses, so
   private account and wallet data is not persisted as offline page content.
+- React Query keeps fetched page data in memory across route changes, serves
+  cached data while stale queries revalidate, and uses offline-first fetch
+  behavior with one retry. The cache is cleared when authentication is cleared.
+- System-setting Redis cache reads fall back to PostgreSQL after at most 100 ms
+  when Redis stalls; settings remain cached in Redis for one hour.
 - Fastify negotiates Brotli, gzip, or deflate for responses of at least 1 KiB.
   Slow (500 ms+) or large (64 KiB+) responses emit route duration and
   uncompressed payload-size diagnostics; route duration is not a database-only

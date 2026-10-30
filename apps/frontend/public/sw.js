@@ -45,7 +45,7 @@ self.addEventListener('fetch', (event) => {
     const cached = await cache.match(request);
     if (cached && isImmutableNextAsset) return cached;
 
-    try {
+    const updateCache = async () => {
       const response = await fetch(request);
       if (response.ok && response.type === 'basic') {
         try {
@@ -57,10 +57,16 @@ self.addEventListener('fetch', (event) => {
         }
       }
       return response;
-    } catch (error) {
-      if (cached) return cached;
-      throw error;
+    };
+
+    if (cached) {
+      event.waitUntil(updateCache().catch((error) => {
+        console.warn('Unable to refresh cached public VouchNodes asset:', error);
+      }));
+      return cached;
     }
+
+    return updateCache();
   })());
 });
 

@@ -7,10 +7,19 @@ export class SystemSettingsService {
     const cacheKey = `setting:${key}`;
     if (redis.status === 'ready') {
       try {
-        const cached = await Promise.race([
-          redis.get(cacheKey),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500)),
-        ]);
+        const cached = await new Promise<string | null>((resolve, reject) => {
+          const timeout = setTimeout(() => resolve(null), 100);
+          redis.get(cacheKey).then(
+            (value) => {
+              clearTimeout(timeout);
+              resolve(value);
+            },
+            (error: unknown) => {
+              clearTimeout(timeout);
+              reject(error);
+            },
+          );
+        });
         if (cached) return JSON.parse(cached);
       } catch (error) {
         logger.warn({ error, key }, 'Unable to read system setting cache; using database');

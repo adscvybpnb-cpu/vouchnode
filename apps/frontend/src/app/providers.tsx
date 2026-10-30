@@ -49,7 +49,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
       queries: {
         staleTime: 2 * 60 * 1000,
         gcTime: 10 * 60 * 1000,
+        networkMode: 'offlineFirst',
+        retry: 1,
+        retryDelay: 500,
         refetchOnWindowFocus: false,
+        refetchOnReconnect: true,
       },
     },
   }));
