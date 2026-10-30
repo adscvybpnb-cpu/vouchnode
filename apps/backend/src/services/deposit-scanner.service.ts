@@ -468,7 +468,7 @@ export class DepositScannerService {
         where: { id: sessionId, userId, orderId: null, status: 'PENDING' },
         select: { currency: true, network: true },
       });
-      if (walletDepositSession && await FirstDepositBonusService.isEligible(userId)) {
+      if (walletDepositSession) {
         try {
           const normalizedAmount = normalizeCryptoAmount(
             amount,
@@ -564,12 +564,24 @@ export class DepositScannerService {
         return { completed, firstDepositBonusAwarded };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }));
       const { completed, firstDepositBonusAwarded } = settlement;
+      console.info(JSON.stringify({
+        event: 'first_deposit_bonus_settlement',
+        userId,
+        depositSessionId: completed.id,
+        depositUsdValue: depositUsdValue?.toString() ?? null,
+        awarded: firstDepositBonusAwarded,
+      }));
       await NotificationService.createNotification({
         userId, type: 'DEPOSIT_CONFIRMED', title: 'Deposit Credited',
         message: firstDepositBonusAwarded
           ? `Your automated deposit of ${amount} ${completed.currency} has been processed. A $10 USDT first-deposit bonus has been added to your wallet.`
           : `Your automated deposit of ${amount} ${completed.currency} has been successfully processed.`,
-        data: { depositSessionId: completed.id, amount, currency: completed.currency },
+        data: {
+          depositSessionId: completed.id,
+          amount,
+          currency: completed.currency,
+          firstDepositBonusAwarded,
+        },
         link: '/dashboard/wallet',
       });
       return completed;

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/services/api.client';
 import { hasUsableAccessToken, useAuthStore } from '@/store/auth.store';
 
@@ -41,8 +41,10 @@ export function useFirstDepositBonusEligibility() {
   const { accessToken, hasHydrated, isAuthenticated, user } = useAuthStore();
   const hasSession = isAuthenticated && hasUsableAccessToken(accessToken);
   const userId = user?.id;
+  const queryClient = useQueryClient();
+  const queryKey = firstDepositBonusEligibilityQueryKey(userId ?? '');
   const query = useQuery({
-    queryKey: firstDepositBonusEligibilityQueryKey(userId ?? ''),
+    queryKey,
     enabled: hasHydrated && hasSession && Boolean(userId),
     initialData: () => userId ? getCachedEligibility(userId) : undefined,
     queryFn: async (): Promise<FirstDepositBonusEligibility> => {
@@ -72,9 +74,21 @@ export function useFirstDepositBonusEligibility() {
     const refreshEligibility = () => {
       if (hasSession && userId) void query.refetch();
     };
+    const markBonusClaimed = () => {
+      if (!hasSession || !userId) return;
+      queryClient.setQueryData<FirstDepositBonusEligibility>(queryKey, (current) => ({
+        eligible: false,
+        claimed: true,
+        totalDepositedUsd: current?.totalDepositedUsd ?? 50,
+      }));
+    };
     window.addEventListener('wallet:updated', refreshEligibility);
-    return () => window.removeEventListener('wallet:updated', refreshEligibility);
-  }, [hasSession, query.refetch, userId]);
+    window.addEventListener('wallet:bonus-claimed', markBonusClaimed);
+    return () => {
+      window.removeEventListener('wallet:updated', refreshEligibility);
+      window.removeEventListener('wallet:bonus-claimed', markBonusClaimed);
+    };
+  }, [hasSession, query.refetch, queryClient, queryKey, userId]);
 
   return {
     ...query,

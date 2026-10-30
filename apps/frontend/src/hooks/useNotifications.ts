@@ -190,6 +190,9 @@ export function useNotifications() {
       } else playMessageChime();
       if (notification.type === 'DEPOSIT_CONFIRMED') {
         window.dispatchEvent(new Event('wallet:updated'));
+        if (notification.data?.firstDepositBonusAwarded === true) {
+          window.dispatchEvent(new Event('wallet:bonus-claimed'));
+        }
       }
       if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
         const desktopNotification = new Notification(notification.title, { body: notification.message, icon: '/favicon.svg', tag: notification.id });

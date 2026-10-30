@@ -34,14 +34,14 @@ describe('first-deposit bonus eligibility threshold', () => {
     });
   });
 
-  it('hides the promotion after cumulative completed deposits reach $50', async () => {
+  it('keeps the promotion visible at $50 until the bonus has been claimed', async () => {
     vi.mocked(prisma.firstDepositBonus.findUnique).mockResolvedValue(null);
     vi.mocked(prisma.deposit.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.depositSession.aggregate).mockResolvedValue({
       _sum: { usdAmount: new Prisma.Decimal('50') },
     } as any);
 
-    await expect(FirstDepositBonusService.isEligible('user-1')).resolves.toBe(false);
+    await expect(FirstDepositBonusService.isEligible('user-1')).resolves.toBe(true);
   });
 
   it('hides the promotion after a bonus claim exists', async () => {
@@ -62,7 +62,7 @@ describe('first-deposit bonus eligibility threshold', () => {
     const tx = {
       depositSession: {
         findFirst: vi.fn().mockResolvedValue({ id: 'session-1' }),
-        aggregate: vi.fn().mockResolvedValue({ _sum: { usdAmount: new Prisma.Decimal(50) } }),
+        aggregate: vi.fn().mockResolvedValue({ _sum: { usdAmount: new Prisma.Decimal(30) } }),
       },
       deposit: { findFirst: vi.fn().mockResolvedValue(null) },
       firstDepositBonus: { createMany: vi.fn().mockResolvedValue({ count: 0 }) },
@@ -85,7 +85,7 @@ describe('first-deposit bonus eligibility threshold', () => {
     const tx = {
       depositSession: {
         findFirst: vi.fn().mockResolvedValue({ id: 'session-1' }),
-        aggregate: vi.fn().mockResolvedValue({ _sum: { usdAmount: new Prisma.Decimal('49.99') } }),
+        aggregate: vi.fn().mockResolvedValue({ _sum: { usdAmount: new Prisma.Decimal('29.99') } }),
       },
       deposit: { findFirst: vi.fn().mockResolvedValue(null) },
       firstDepositBonus: { createMany: vi.fn() },
@@ -107,7 +107,7 @@ describe('first-deposit bonus eligibility threshold', () => {
     const tx = {
       depositSession: {
         findFirst: vi.fn().mockResolvedValue({ id: 'session-1' }),
-        aggregate: vi.fn().mockResolvedValue({ _sum: { usdAmount: new Prisma.Decimal(50) } }),
+        aggregate: vi.fn().mockResolvedValue({ _sum: { usdAmount: new Prisma.Decimal(30) } }),
       },
       deposit: { findFirst: vi.fn().mockResolvedValue(null) },
       firstDepositBonus: { createMany: vi.fn().mockResolvedValue({ count: 1 }) },
@@ -132,5 +132,14 @@ describe('first-deposit bonus eligibility threshold', () => {
       'USDT',
     );
     expect(createLedgerEntry).toHaveBeenCalledOnce();
+    expect(tx.depositSession.aggregate).toHaveBeenCalledWith({
+      where: {
+        userId: 'user-1',
+        orderId: null,
+        status: 'COMPLETED',
+        id: { not: 'session-1' },
+      },
+      _sum: { usdAmount: true },
+    });
   });
 });

@@ -28,7 +28,7 @@ export class FirstDepositBonusService {
     const totalDepositedUsd = new Prisma.Decimal(deposits._sum.usdAmount?.toString() ?? '0');
     const claimed = Boolean(claimedBonus);
     return {
-      eligible: !claimed && !priorLegacyDeposit && totalDepositedUsd.lt(FIRST_DEPOSIT_BONUS_MINIMUM_USD),
+      eligible: !claimed && !priorLegacyDeposit,
       claimed,
       totalDepositedUsd: Number(totalDepositedUsd.toString()),
     };
@@ -66,11 +66,17 @@ export class FirstDepositBonusService {
         select: { id: true },
       }),
       tx.depositSession.aggregate({
-        where: { userId: input.userId, orderId: null, status: 'COMPLETED' },
+        where: {
+          userId: input.userId,
+          orderId: null,
+          status: 'COMPLETED',
+          id: { not: input.depositSessionId },
+        },
         _sum: { usdAmount: true },
       }),
     ]);
-    const totalDepositedUsd = new Prisma.Decimal(deposits._sum.usdAmount?.toString() ?? '0');
+    const priorDepositsUsd = new Prisma.Decimal(deposits._sum.usdAmount?.toString() ?? '0');
+    const totalDepositedUsd = priorDepositsUsd.add(input.depositUsdValue);
     if (priorLegacyDeposit || !meetsFirstDepositBonusThreshold(totalDepositedUsd)) return false;
 
     const claim = await tx.firstDepositBonus.createMany({

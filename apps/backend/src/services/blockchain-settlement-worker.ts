@@ -272,7 +272,7 @@ export class BlockchainSettlementWorker {
 
         let depositUsdValue: Prisma.Decimal | null = null;
         const walletDepositSession = orderSettlement?.depositSession;
-        if (walletDepositSession && await FirstDepositBonusService.isEligible(walletDepositSession.userId)) {
+        if (walletDepositSession) {
           try {
             depositUsdValue = await PriceService.convertCryptoToUsd(
               orderSettlement.amount,
@@ -380,6 +380,12 @@ export class BlockchainSettlementWorker {
         }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
         if (notification) {
+          logger.info({
+            userId: notification.userId,
+            depositId,
+            firstDepositBonusAwarded: notification.firstDepositBonusAwarded,
+            depositUsdValue: depositUsdValue?.toString() ?? null,
+          }, 'Wallet deposit settlement and first-deposit bonus evaluated');
           try {
             await NotificationService.createNotification({
               userId: notification.userId,
@@ -388,7 +394,12 @@ export class BlockchainSettlementWorker {
               message: notification.firstDepositBonusAwarded
                 ? `Your automated deposit of ${notification.amount} ${notification.currency} has been processed. A $10 USDT first-deposit bonus has been added to your wallet.`
                 : `Your automated deposit of ${notification.amount} ${notification.currency} has been successfully processed.`,
-              data: { depositId, amount: notification.amount, currency: notification.currency },
+              data: {
+                depositId,
+                amount: notification.amount,
+                currency: notification.currency,
+                firstDepositBonusAwarded: notification.firstDepositBonusAwarded,
+              },
               link: '/dashboard/wallet',
             });
           } catch (error) {
