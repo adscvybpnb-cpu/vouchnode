@@ -5,6 +5,7 @@ import {
   quoteP2PTrade,
 } from './p2p-pricing.service';
 import { normalizeAvatarUrl } from './avatar-url.service';
+import { emitP2POfferBalanceUpdate } from '../websocket/socket.server';
 
 type P2PTradeMetrics = {
   thirtyDayOrders: number;
@@ -162,7 +163,7 @@ export class P2PProfileService {
         }
       }
 
-      return await prisma.p2POffer.create({
+      const offer = await prisma.p2POffer.create({
         data: {
           type: data.side,
           giftCardType,
@@ -190,6 +191,8 @@ export class P2PProfileService {
           updatedAt: true
         }
       });
+      emitP2POfferBalanceUpdate(userId, asset);
+      return offer;
     } catch (cause) {
       if (cause && typeof cause === 'object' && 'statusCode' in cause) throw cause;
       const error = new Error('Unable to create the P2P offer', { cause }) as Error & { statusCode?: number };
