@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { Send } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { APP_NAME } from '@/lib/constants';
 import { siteConfigService } from '@/services/site-config.service';
@@ -73,9 +72,15 @@ export function Footer() {
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Visit VouchNodes on Telegram (opens in a new tab)"
-            className="rounded-full border border-border p-2 text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+            className="rounded-full p-1 transition-transform hover:scale-110"
           >
-            <Send aria-hidden="true" className="h-4 w-4" />
+            <svg aria-hidden="true" viewBox="0 0 32 32" className="h-8 w-8">
+              <circle cx="16" cy="16" r="16" fill="#229ED9" />
+              <path
+                fill="#fff"
+                d="M24.67 8.19 21.8 23.1c-.22 1.05-.83 1.3-1.68.81l-4.64-3.42-2.24 2.16c-.25.25-.46.46-.94.46l.33-4.72 8.6-7.77c.37-.33-.08-.52-.57-.19l-10.63 6.7-4.58-1.43c-1-.31-1.02-1 .21-1.49l17.9-6.9c.83-.3 1.56.2 1.29 1.48Z"
+              />
+            </svg>
           </a>
         </div>
         <div translate="no" className="notranslate mt-4 flex gap-4 sm:mt-0">
