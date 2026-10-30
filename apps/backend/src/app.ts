@@ -1,4 +1,5 @@
 import fastify from 'fastify';
+import compress from '@fastify/compress';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import cookie from '@fastify/cookie';
@@ -66,6 +67,34 @@ export const buildApp = async () => {
   });
   app.server.keepAliveTimeout = 72_000;
   app.server.headersTimeout = 75_000;
+  await app.register(compress, {
+    global: true,
+    threshold: 1024,
+    encodings: ['br', 'gzip', 'deflate'],
+  });
+  const uncompressedResponseBytes = new WeakMap<FastifyRequest, number>();
+  app.addHook('onSend', async (request, _reply, payload) => {
+    if (typeof payload === 'string') {
+      uncompressedResponseBytes.set(request, Buffer.byteLength(payload));
+    } else if (Buffer.isBuffer(payload)) {
+      uncompressedResponseBytes.set(request, payload.byteLength);
+    }
+    return payload;
+  });
+  app.addHook('onResponse', async (request, reply) => {
+    const responseBytes = uncompressedResponseBytes.get(request);
+    const durationMs = reply.elapsedTime;
+    if (durationMs >= 500 || (responseBytes !== undefined && responseBytes >= 64 * 1024)) {
+      request.log.warn({
+        route: request.routeOptions.url,
+        statusCode: reply.statusCode,
+        durationMs,
+        uncompressedResponseBytes: responseBytes,
+        contentEncoding: reply.getHeader('content-encoding'),
+      }, 'Slow or large API response');
+    }
+    uncompressedResponseBytes.delete(request);
+  });
   app.addContentTypeParser('application/json', { parseAs: 'buffer' }, (request: any, body: Buffer, done) => {
     request.rawBody = body.toString('utf8');
     try {

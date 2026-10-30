@@ -124,11 +124,6 @@ export default async function p2pRoutes(app: FastifyInstance) {
               lastLoginAt: true,
               isOnline: true,
               onlineUntil: true,
-              completedTradesCount: true,
-              tradesAsSeller: {
-                where: { status: { in: ['COMPLETED', 'SUCCESS'] } },
-                select: { createdAt: true, completedAt: true }
-              },
               profile: { select: { username: true, displayName: true, avatarUrl: true } }
             }
           }
@@ -139,6 +134,8 @@ export default async function p2pRoutes(app: FastifyInstance) {
         return res.status(404).send({ message: 'P2P offer not found' });
       }
 
+      const tradeMetrics = (await P2PProfileService.getTradeMetricsForUsers([offer.user.id]))
+        .get(offer.user.id);
       const lastActiveAt = offer.user.lastLoginAt || offer.updatedAt;
       const cryptoUsdPrice = await getP2PSpotPrice(offer.cryptoAsset);
       const merchantWallet = offer.type === 'BUY'
@@ -170,22 +167,23 @@ export default async function p2pRoutes(app: FastifyInstance) {
       }
       const isOnline = offer.user.isOnline &&
         (!offer.user.onlineUntil || offer.user.onlineUntil.getTime() > Date.now());
-      const releaseDurations = offer.user.tradesAsSeller
-        .filter((trade) => trade.completedAt)
-        .map((trade) => (trade.completedAt!.getTime() - trade.createdAt.getTime()) / 60000)
-        .filter((minutes) => Number.isFinite(minutes) && minutes >= 0);
-      const avgReleaseMinutes = releaseDurations.length
-        ? Math.round(releaseDurations.reduce((total, minutes) => total + minutes, 0) / releaseDurations.length)
-        : 0;
+      const username = offer.user.profile?.username || offer.user.id;
+      const displayName = offer.user.profile?.displayName || username;
       return res.status(200).send({
         data: {
           id: offer.id,
           userId: offer.user.id,
           merchantId: offer.user.id,
-          merchantName: offer.user.profile?.displayName || offer.user.profile?.username || 'P2P Merchant',
-          username: offer.user.profile?.username || offer.user.id,
+          merchant: {
+            id: offer.user.id,
+            username,
+            displayName,
+            avatarUrl: offer.user.profile?.avatarUrl || null,
+          },
+          merchantName: displayName,
+          username,
           avatarUrl: offer.user.profile?.avatarUrl || null,
-          completionRate: offer.user.completedTradesCount > 0 ? 100 : 0,
+          completionRate: tradeMetrics?.completionRate ?? 0,
           cryptoCurrency: offer.cryptoAsset,
           cryptoUsdPrice: Number(cryptoUsdPrice),
           giftCardRate: Number(offer.exchangeRate),
@@ -196,12 +194,12 @@ export default async function p2pRoutes(app: FastifyInstance) {
           effectiveMax,
           availableQuantity: null,
           paymentTags: [],
-          tradeVolume: offer.user.completedTradesCount,
+          tradeVolume: tradeMetrics?.totalCompletedOrders ?? 0,
           isOnline,
           isActiveWithinFiveMinutes: lastActiveAt >= new Date(Date.now() - ACTIVE_WINDOW_MS),
           lastActiveAt,
           terms: offer.terms,
-          avgReleaseMinutes
+          avgReleaseMinutes: tradeMetrics?.avgReleaseMinutes ?? 0
         }
       });
     } catch (error) {
@@ -281,14 +279,9 @@ export default async function p2pRoutes(app: FastifyInstance) {
               lastLoginAt: true,
               isOnline: true,
               onlineUntil: true,
-              completedTradesCount: true,
               wallets: {
                 where: { currency: { in: SUPPORTED_CURRENCIES } },
                 select: { currency: true, availableBalance: true },
-              },
-              tradesAsSeller: {
-                where: { status: { in: ['COMPLETED', 'SUCCESS'] } },
-                select: { createdAt: true, completedAt: true }
               },
               profile: { select: { username: true, displayName: true, avatarUrl: true } }
             }
@@ -338,13 +331,21 @@ export default async function p2pRoutes(app: FastifyInstance) {
           const lastActiveAt = offer.user.lastLoginAt || offer.updatedAt;
           const isOnline = offer.user.isOnline &&
             (!offer.user.onlineUntil || offer.user.onlineUntil.getTime() > Date.now());
+          const username = offer.user.profile?.username || offer.user.id;
+          const displayName = offer.user.profile?.displayName || username;
           const isActiveWithinFiveMinutes = isOnline || lastActiveAt >= activeSince;
           return {
             id: offer.id,
             userId: offer.user.id,
             merchantId: offer.user.id,
-            merchantName: offer.user.profile?.displayName || offer.user.profile?.username || 'P2P Merchant',
-            username: offer.user.profile?.username || offer.user.id,
+            merchant: {
+              id: offer.user.id,
+              username,
+              displayName,
+              avatarUrl: offer.user.profile?.avatarUrl || null,
+            },
+            merchantName: displayName,
+            username,
             avatarUrl: offer.user.profile?.avatarUrl || null,
             completionRate: tradeMetrics.completionRate,
             cryptoCurrency: offer.cryptoAsset,
@@ -360,15 +361,7 @@ export default async function p2pRoutes(app: FastifyInstance) {
             isOnline,
             lastActiveAt,
             terms: offer.terms,
-            avgReleaseMinutes: (() => {
-              const durations = offer.user.tradesAsSeller
-                .filter((trade) => trade.completedAt)
-                .map((trade) => (trade.completedAt!.getTime() - trade.createdAt.getTime()) / 60000)
-                .filter((minutes) => Number.isFinite(minutes) && minutes >= 0);
-              return durations.length
-                ? Math.round(durations.reduce((total, minutes) => total + minutes, 0) / durations.length)
-                : 0;
-            })(),
+            avgReleaseMinutes: tradeMetrics.avgReleaseMinutes,
             isActiveWithinFiveMinutes
           };
         })))

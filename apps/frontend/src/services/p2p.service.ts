@@ -4,6 +4,12 @@ export type P2POffer = {
   id: string;
   userId: string;
   merchantId: string;
+  merchant?: {
+    id: string;
+    username: string;
+    displayName: string;
+    avatarUrl: string | null;
+  };
   merchantName: string;
   username: string;
   avatarUrl: string | null;
@@ -25,6 +31,8 @@ export type P2POffer = {
   terms: string | null;
   avgReleaseMinutes: number;
 };
+
+export const cleanP2PName = (value: string) => value.trim().replace(/^@+/, '');
 
 export type P2PProfile = {
   id: string;

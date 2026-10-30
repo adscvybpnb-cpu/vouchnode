@@ -190,9 +190,19 @@ file outside the repository. Never commit production environment files.
   data fetches.
 - The frontend uses a system font stack; production builds do not fetch Google
   Fonts or require external font access.
+- The service worker keeps a bounded cache of the offline shell and static
+  public assets. It does not archive authenticated routes or API responses, so
+  private account and wallet data is not persisted as offline page content.
+- Fastify negotiates Brotli, gzip, or deflate for responses of at least 1 KiB.
+  Slow (500 ms+) or large (64 KiB+) responses emit route duration and
+  uncompressed payload-size diagnostics; route duration is not a database-only
+  query measurement.
 - Set `DATABASE_URL` to the external PostgreSQL provider's TLS-enabled
   connection string. URL-encode reserved characters in credentials and allow
   connections from the API/worker host in the database provider's network rules.
+- Prisma indexes are managed through forward-only migrations. The current
+  query-path index migration adds coverage for transaction/withdrawal listing,
+  wallet ledger history, product regions, and selected relation lookups.
 - Prisma uses a bounded connection pool per process. `PRISMA_CONNECTION_LIMIT`
   defaults to 5, while `PRISMA_POOL_TIMEOUT` and `PRISMA_CONNECT_TIMEOUT`
   default to 20 and 10 seconds. Keep the sum of API and worker pool limits

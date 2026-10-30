@@ -1,0 +1,12 @@
+CREATE INDEX "FavoriteListing_productId_idx" ON "FavoriteListing"("productId");
+CREATE INDEX "UserProfile_countryCode_idx" ON "UserProfile"("countryCode");
+CREATE INDEX "UserRole_roleId_idx" ON "UserRole"("roleId");
+CREATE INDEX "RolePermission_permissionId_idx" ON "RolePermission"("permissionId");
+CREATE INDEX "Product_regionCode_idx" ON "Product"("regionCode");
+CREATE INDEX "Transaction_status_createdAt_idx" ON "Transaction"("status", "createdAt");
+CREATE INDEX "LedgerEntry_walletId_createdAt_idx" ON "LedgerEntry"("walletId", "createdAt");
+CREATE INDEX "Deposit_addressId_idx" ON "Deposit"("addressId");
+CREATE INDEX "DetectedDeposit_walletId_idx" ON "DetectedDeposit"("walletId");
+CREATE INDEX "Withdrawal_status_createdAt_idx" ON "Withdrawal"("status", "createdAt");
+CREATE INDEX "Report_reportedUserId_idx" ON "Report"("reportedUserId");
+CREATE INDEX "Report_productId_idx" ON "Report"("productId");

@@ -116,6 +116,7 @@ model FavoriteListing {
 
   @@unique([userId, productId])
   @@index([userId])
+  @@index([productId])
 }
 
 model SavedSearch {
@@ -172,6 +173,7 @@ model UserProfile {
   country Country? @relation(fields: [countryCode], references: [code])
 
   @@index([username])
+  @@index([countryCode])
 }
 
 model KycRequest {
@@ -203,7 +205,6 @@ model KycRequest {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])
-  @@index([status, createdAt])
 }
 
 enum KycStatus {
@@ -275,6 +276,7 @@ model UserRole {
 
   @@unique([userId, roleId])
   @@index([userId])
+  @@index([roleId])
 }
 
 model RolePermission {
@@ -285,6 +287,7 @@ model RolePermission {
   permission Permission @relation(fields: [permissionId], references: [id])
 
   @@id([roleId, permissionId])
+  @@index([permissionId])
 }
 
 // =====================
@@ -402,6 +405,7 @@ model Product {
   @@index([isFeatured])
   @@index([isTrending])
   @@index([sellerId, status, createdAt])
+  @@index([regionCode])
 }
 
 enum DeliveryType {
@@ -804,6 +808,7 @@ model Transaction {
   @@index([status])
   @@index([cryptoTxHash])
   @@index([status, confirmationBlock])
+  @@index([status, createdAt])
 }
 
 enum TransactionStatus {
@@ -842,6 +847,7 @@ model LedgerEntry {
   @@index([type])
   @@index([status])
   @@index([createdAt])
+  @@index([walletId, createdAt])
 }
 
 enum LedgerType {
@@ -999,6 +1005,7 @@ model Deposit {
   @@index([cryptoTxHash])
   @@index([status])
   @@index([depositAddress])
+  @@index([addressId])
 }
 
 model DepositSession {
@@ -1195,6 +1202,7 @@ model DetectedDeposit {
   @@index([depositSessionId, status])
   @@index([transactionId, status])
   @@index([status, lastCheckedAt])
+  @@index([walletId])
 }
 
 enum DetectedDepositStatus {
@@ -1238,6 +1246,7 @@ model Withdrawal {
   @@index([walletId])
   @@index([status])
   @@index([createdAt])
+  @@index([status, createdAt])
 }
 
 enum WithdrawalStatus {
@@ -1470,6 +1479,8 @@ model Report {
   @@index([targetType, targetId])
   @@index([status])
   @@index([reporterID])
+  @@index([reportedUserId])
+  @@index([productId])
 }
 
 enum ReportType {

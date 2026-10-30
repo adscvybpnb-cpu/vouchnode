@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight, Check, ChevronDown, Clock3, ClipboardList, Copy, Heart, LayoutGrid, Megaphone, MessageCircle, RefreshCw, Search, ShieldCheck, Trash2, UserRound, Zap, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { p2pService, type P2POrder, type P2POffer, type P2PProfile } from '@/services/p2p.service';
+import { cleanP2PName, p2pService, type P2POrder, type P2POffer, type P2PProfile } from '@/services/p2p.service';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore, type User } from '@/store/auth.store';
 import { getSellerOnboardingPath, isApprovedSeller } from '@/lib/seller-access';
@@ -95,10 +95,10 @@ function MerchantProfileView({ profile, loading, error, currentUser }: { profile
     ['Identity', profile.verification.identity],
     ['Deposit', profile.verification.hasP2PInsuranceDeposit]
   ] as const;
-  const displayName = profile.id === currentUser?.id
+  const displayName = cleanP2PName(profile.id === currentUser?.id
     ? currentUser.displayName || currentUser.username
-    : profile.displayName;
-  const username = profile.id === currentUser?.id ? currentUser.username : profile.username;
+    : profile.displayName);
+  const username = cleanP2PName(profile.id === currentUser?.id ? currentUser.username : profile.username);
   const avatarUrl = profile.id === currentUser?.id ? currentUser.avatarUrl : profile.avatarUrl;
   return (
     <section className="mx-auto max-w-5xl">
@@ -111,7 +111,7 @@ function MerchantProfileView({ profile, loading, error, currentUser }: { profile
                 <h1 className="text-2xl font-black tracking-tight">{displayName}</h1>
                 <button type="button" aria-label="Favorite merchant" className="text-amber-300 transition hover:scale-110"><Heart className="h-5 w-5 fill-current" /></button>
               </div>
-              <p className="mt-1 truncate text-sm text-slate-500">@{username}</p>
+              <p className="mt-1 truncate text-sm text-slate-500">{username}</p>
               <span className={`mt-2 inline-flex items-center gap-2 text-sm font-medium ${profile.isOnline ? 'text-emerald-300' : 'text-slate-500'}`}><span className={`h-2 w-2 rounded-full ${profile.isOnline ? 'bg-emerald-400' : 'bg-slate-600'}`} />{profile.isOnline ? 'Online' : 'Offline'}</span>
             </div>
           </div>
@@ -499,16 +499,22 @@ export default function P2POffersPage() {
       queryClient.setQueriesData<P2POffer[]>({ queryKey: ['p2p', 'offers'] }, (current) => current?.map((offer) => offer.userId === payload.userId
         ? {
             ...offer,
-            username: payload.profile.username,
-            merchantName: payload.profile.displayName || payload.profile.username,
+            username: cleanP2PName(payload.profile.username),
+            merchantName: cleanP2PName(payload.profile.displayName || payload.profile.username),
+            merchant: {
+              id: payload.userId,
+              username: cleanP2PName(payload.profile.username),
+              displayName: cleanP2PName(payload.profile.displayName || payload.profile.username),
+              avatarUrl: payload.profile.avatarUrl,
+            },
             avatarUrl: payload.profile.avatarUrl,
           }
         : offer));
       queryClient.setQueryData<P2PProfile>(profileQueryKey, (current) => current?.id === payload.userId
         ? {
             ...current,
-            username: payload.profile.username,
-            displayName: payload.profile.displayName || payload.profile.username,
+            username: cleanP2PName(payload.profile.username),
+            displayName: cleanP2PName(payload.profile.displayName || payload.profile.username),
             avatarUrl: payload.profile.avatarUrl,
           }
         : current);
@@ -586,15 +592,17 @@ export default function P2POffersPage() {
             </div>
           )) : offers.length === 0 ? <div className="rounded-2xl border border-white/10 bg-[#11141d] p-12 text-center text-slate-400">No active merchant offers match these filters.</div> : offers.map((offer) => {
             const ownProfile = offer.userId === user?.id ? user : null;
-            const merchantName = ownProfile ? ownProfile.displayName || ownProfile.username : offer.merchantName;
-            const merchantUsername = ownProfile?.username || offer.username;
-            const merchantAvatarUrl = ownProfile ? ownProfile.avatarUrl : offer.avatarUrl;
+            const merchantName = cleanP2PName(ownProfile
+              ? ownProfile.displayName || ownProfile.username
+              : offer.merchant?.displayName || offer.merchantName);
+            const merchantUsername = cleanP2PName(ownProfile?.username || offer.merchant?.username || offer.username);
+            const merchantAvatarUrl = ownProfile?.avatarUrl || offer.merchant?.avatarUrl || offer.avatarUrl;
             return (
             <ResponsiveRowCard key={offer.id} className="rounded-xl border border-white/10 bg-[#11141d] shadow-lg transition hover:border-white/20">
                 <Link href={`/p2p-offers/merchant/${offer.merchantId}`} className="flex min-w-0 flex-1 items-center gap-2 rounded-lg transition hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 sm:gap-3">
                   <P2PMerchantAvatar name={merchantName} avatarUrl={merchantAvatarUrl} className="h-9 w-9 rounded-full text-sm sm:h-11 sm:w-11" />
                   <div className="min-w-0">
-                    <div className="flex min-w-0 items-center gap-1.5"><p className="truncate text-sm font-bold text-white sm:text-base">@{merchantUsername}</p><span className={`h-2 w-2 shrink-0 rounded-full ${offer.isOnline ? 'bg-emerald-400' : 'bg-slate-600'}`} /></div>
+                    <div className="flex min-w-0 items-center gap-1.5"><p className="truncate text-sm font-bold text-white sm:text-base">{merchantUsername}</p><span className={`h-2 w-2 shrink-0 rounded-full ${offer.isOnline ? 'bg-emerald-400' : 'bg-slate-600'}`} /></div>
                     <p className="mt-0.5 truncate text-[11px] text-slate-500 sm:text-xs">{offer.tradeVolume.toLocaleString()} trades · {offer.completionRate.toFixed(1)}% completion</p>
                     <span className="mt-1 inline-block max-w-full truncate rounded bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">{offer.giftCardType}</span>
                   </div>

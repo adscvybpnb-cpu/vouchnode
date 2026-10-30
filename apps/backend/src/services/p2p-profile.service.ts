@@ -11,9 +11,30 @@ type P2PTradeMetrics = {
   completedBuyOrders: number;
   completedSellOrders: number;
   completionRate: number;
+  avgReleaseMinutes: number;
 };
 
 export class P2PProfileService {
+  private static async getAverageReleaseMinutesForUsers(userIds: string[]) {
+    const rows = await prisma.$queryRaw<Array<{ sellerId: string; averageMinutes: number | null }>>(Prisma.sql`
+      SELECT
+        "sellerId",
+        AVG(EXTRACT(EPOCH FROM ("completedAt" - "createdAt")) / 60.0)::float8 AS "averageMinutes"
+      FROM "P2POrder"
+      WHERE "sellerId" IN (${Prisma.join(userIds)})
+        AND "status" = 'COMPLETED'
+        AND "completedAt" IS NOT NULL
+        AND "completedAt" >= "createdAt"
+      GROUP BY "sellerId"
+    `);
+    return new Map(rows.map(({ sellerId, averageMinutes }) => [
+      sellerId,
+      averageMinutes !== null && Number.isFinite(averageMinutes)
+        ? Math.max(1, Math.round(averageMinutes))
+        : 0,
+    ]));
+  }
+
   static async getTradeMetricsForUsers(userIds: string[]): Promise<Map<string, P2PTradeMetrics>> {
     const uniqueUserIds = [...new Set(userIds)];
     if (uniqueUserIds.length === 0) return new Map<string, P2PTradeMetrics>();
@@ -25,6 +46,7 @@ export class P2PProfileService {
       thirtyDayCompletedOrders,
       totalCompletedOrders,
       completedBuyOrders,
+      averageReleaseMinutesByUserId,
     ] = await Promise.all([
       prisma.p2POrder.groupBy({
         by: ['sellerId'],
@@ -50,6 +72,7 @@ export class P2PProfileService {
         where: { buyerId: { in: uniqueUserIds }, status: { in: [...completedStatuses] } },
         _count: { _all: true },
       }),
+      this.getAverageReleaseMinutesForUsers(uniqueUserIds),
     ]);
 
     const recentCountsByUserId = new Map(thirtyDayOrders.map((row) => [row.sellerId, row._count._all]));
@@ -66,49 +89,20 @@ export class P2PProfileService {
         completedBuyOrders: completedBuyByUserId.get(userId) ?? 0,
         completedSellOrders: totalCompletedByUserId.get(userId) ?? 0,
         completionRate: recentOrderCount ? (recentCompletedCount / recentOrderCount) * 100 : 0,
+        avgReleaseMinutes: averageReleaseMinutesByUserId.get(userId) ?? 0,
       }];
     }));
   }
 
   static async getTradeMetrics(userId: string) {
-    const completedStatuses = ['COMPLETED'] as const;
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const [thirtyDayOrders, thirtyDayCompletedOrders, totalCompletedOrders, completedBuyOrders, completedSellOrders] = await Promise.all([
-      prisma.p2POrder.count({ where: { sellerId: userId, createdAt: { gte: thirtyDaysAgo } } }),
-      prisma.p2POrder.count({
-        where: { sellerId: userId, createdAt: { gte: thirtyDaysAgo }, status: { in: [...completedStatuses] } },
-      }),
-      prisma.p2POrder.count({ where: { sellerId: userId, status: { in: [...completedStatuses] } } }),
-      prisma.p2POrder.count({ where: { buyerId: userId, status: { in: [...completedStatuses] } } }),
-      prisma.p2POrder.count({ where: { sellerId: userId, status: { in: [...completedStatuses] } } }),
-    ]);
-
-    console.log('[P2P metrics] p2POrder count result', {
-      userId,
-      completedStatuses,
-      thirtyDaysAgo: thirtyDaysAgo.toISOString(),
-      queries: {
-        thirtyDayOrders: { sellerId: userId, createdAt: { gte: thirtyDaysAgo } },
-        thirtyDayCompletedOrders: { sellerId: userId, createdAt: { gte: thirtyDaysAgo }, status: { in: completedStatuses } },
-        totalCompletedOrders: { sellerId: userId, status: { in: completedStatuses } },
-        completedBuyOrders: { buyerId: userId, status: { in: completedStatuses } },
-        completedSellOrders: { sellerId: userId, status: { in: completedStatuses } },
-      },
-      counts: {
-        thirtyDayOrders,
-        thirtyDayCompletedOrders,
-        totalCompletedOrders,
-        completedBuyOrders,
-        completedSellOrders,
-      },
-    });
-
-    return {
-      thirtyDayOrders,
-      totalCompletedOrders,
-      completedBuyOrders,
-      completedSellOrders,
-      completionRate: thirtyDayOrders ? (thirtyDayCompletedOrders / thirtyDayOrders) * 100 : 0,
+    const metrics = await this.getTradeMetricsForUsers([userId]);
+    return metrics.get(userId) ?? {
+      thirtyDayOrders: 0,
+      totalCompletedOrders: 0,
+      completedBuyOrders: 0,
+      completedSellOrders: 0,
+      completionRate: 0,
+      avgReleaseMinutes: 0,
     };
   }
 
@@ -209,7 +203,7 @@ export class P2PProfileService {
       select: {
         emailVerified: true, kycStatus: true, twoFactorEnabled: true,
         isOnline: true, onlineUntil: true, createdAt: true,
-        profile: { select: { username: true, displayName: true, avatarUrl: true, isIdentityVerified: true, avgReleaseMinutes: true, avgPaymentSpeedMins: true } },
+        profile: { select: { username: true, displayName: true, avatarUrl: true, isIdentityVerified: true, avgPaymentSpeedMins: true } },
         depositSessions: { where: { status: 'COMPLETED' }, select: { id: true } },
         p2pOffers: { where: { isActive: true }, orderBy: { updatedAt: 'desc' } },
         reviewsReceived: {
@@ -237,7 +231,7 @@ export class P2PProfileService {
       stats: {
         ...tradeMetrics,
         positiveRating: user.reviewsReceived.length ? (goodReviews.length / user.reviewsReceived.length) * 100 : 0,
-        avgReleaseMinutes: user.profile?.avgReleaseMinutes || 0, avgPaymentMinutes: user.profile?.avgPaymentSpeedMins || 0,
+        avgPaymentMinutes: user.profile?.avgPaymentSpeedMins || 0,
         accountAgeDays: Math.floor((Date.now() - user.createdAt.getTime()) / (24 * 60 * 60 * 1000)),
         goodReviews: goodReviews.length, badReviews: user.reviewsReceived.length - goodReviews.length
       },

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ShieldCheck } from 'lucide-react';
-import { p2pService, type P2POffer } from '@/services/p2p.service';
+import { cleanP2PName, p2pService, type P2POffer } from '@/services/p2p.service';
 import { OfferTerms } from '@/components/p2p/OfferTerms';
 import { P2PMerchantAvatar } from '@/components/p2p/P2PMerchantAvatar';
 import { useAuthStore } from '@/store/auth.store';
@@ -47,8 +47,14 @@ export default function P2PTradePage() {
       setOffer((current) => current?.userId === payload.userId
         ? {
             ...current,
-            username: payload.profile.username,
-            merchantName: payload.profile.displayName || payload.profile.username,
+            username: cleanP2PName(payload.profile.username),
+            merchantName: cleanP2PName(payload.profile.displayName || payload.profile.username),
+            merchant: {
+              id: payload.userId,
+              username: cleanP2PName(payload.profile.username),
+              displayName: cleanP2PName(payload.profile.displayName || payload.profile.username),
+              avatarUrl: payload.profile.avatarUrl,
+            },
             avatarUrl: payload.profile.avatarUrl,
           }
         : current);
@@ -124,9 +130,11 @@ export default function P2PTradePage() {
   }
 
   const ownProfile = offer.userId === user?.id ? user : null;
-  const merchantName = ownProfile ? ownProfile.displayName || ownProfile.username : offer.merchantName;
-  const merchantUsername = ownProfile?.username || offer.username;
-  const merchantAvatarUrl = ownProfile ? ownProfile.avatarUrl : offer.avatarUrl;
+  const merchantName = cleanP2PName(ownProfile
+    ? ownProfile.displayName || ownProfile.username || offer.merchant?.displayName || offer.merchantName
+    : offer.merchant?.displayName || offer.merchantName);
+  const merchantUsername = cleanP2PName(ownProfile?.username || offer.merchant?.username || offer.username);
+  const merchantAvatarUrl = ownProfile?.avatarUrl || offer.merchant?.avatarUrl || offer.avatarUrl;
 
   return (
     <main className="min-h-screen bg-[#07090f] px-4 py-6 text-white sm:px-6 lg:px-8">
@@ -137,7 +145,7 @@ export default function P2PTradePage() {
         <header className="mt-6 flex items-center gap-4 rounded-2xl border border-white/10 bg-[#11141d] p-5 shadow-2xl">
           <P2PMerchantAvatar name={merchantName} avatarUrl={merchantAvatarUrl} className="h-14 w-14 rounded-full text-xl" />
           <div>
-            <h1 className="text-xl font-black">@{merchantUsername}</h1>
+            <h1 className="text-xl font-black">{merchantUsername}</h1>
             <div className="mt-1 flex items-center gap-2 text-sm text-slate-400"><span className={`h-2 w-2 rounded-full ${offer.isOnline ? 'bg-emerald-400' : 'bg-slate-600'}`} />{offer.isOnline ? 'Online' : 'Offline'}</div>
           </div>
         </header>
