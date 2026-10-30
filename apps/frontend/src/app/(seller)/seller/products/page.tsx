@@ -235,7 +235,7 @@ export default function SellerProductsPage() {
       <div className="mx-auto max-w-7xl">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-300">Seller Studio</p><h1 className="mt-2 text-3xl font-bold">My listings</h1><p className="mt-1 text-sm text-slate-400">Manage pricing, visibility, and sales activity.</p></div>
-          <Button onClick={() => router.push('/seller/create-listing')} className="bg-indigo-600 hover:bg-indigo-500"><Plus className="mr-2 h-4 w-4" /> START SELLING</Button>
+          <Button onClick={() => router.push('/seller/choose-asset')} className="bg-indigo-600 hover:bg-indigo-500"><Plus className="mr-2 h-4 w-4" /> START SELLING</Button>
         </div>
         <div className="overflow-x-auto border-b border-white/10">
           <div className="flex min-w-max gap-6">

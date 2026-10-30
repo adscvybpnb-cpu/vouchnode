@@ -25,7 +25,7 @@ export default function ListingsPage() {
           <p className="mt-2 text-sm text-slate-400">Manage your digital products and gift card inventory.</p>
         </div>
         <Link
-          href="/seller/create-listing"
+          href="/seller/choose-asset"
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition hover:bg-indigo-400"
         >
           <Plus className="h-4 w-4" />
@@ -60,7 +60,7 @@ export default function ListingsPage() {
           <p className="mt-2 max-w-md text-sm text-slate-400">
             Create an auto-delivery product listing to start selling securely on VouchNodes.
           </p>
-          <Link href="/seller/create-listing" className="mt-5 text-sm font-semibold text-indigo-300 hover:text-indigo-200">
+          <Link href="/seller/choose-asset" className="mt-5 text-sm font-semibold text-indigo-300 hover:text-indigo-200">
             Create your first listing
           </Link>
         </div>

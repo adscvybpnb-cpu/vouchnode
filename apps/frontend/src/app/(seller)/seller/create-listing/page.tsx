@@ -102,8 +102,14 @@ export default function CreateListingPage() {
   useEffect(() => {
     let active = true;
     const params = new URLSearchParams(window.location.search);
-    const template = getSellerCatalogTemplate(params.get('template'));
+    const templateId = params.get('template');
+    const template = getSellerCatalogTemplate(templateId);
     const selectedPrice = params.get('price')?.match(/^\d+(?:\.\d+)?$/)?.[0];
+    if (!selectedPrice || Number(selectedPrice) <= 0 || (templateId !== 'custom' && !template)) {
+      router.replace('/seller/choose-asset');
+      return () => { active = false; };
+    }
+
     const loadCategories = async () => {
       const categories = await productService.getCategories();
       if (!active) return;
@@ -131,7 +137,7 @@ export default function CreateListingPage() {
     setTemplateSelected(true);
     setGlobalRegion(true);
     return () => { active = false; };
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     const fileUrls = files.map((file) => URL.createObjectURL(file));
