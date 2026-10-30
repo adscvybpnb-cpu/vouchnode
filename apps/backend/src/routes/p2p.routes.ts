@@ -311,10 +311,18 @@ export default async function p2pRoutes(app: FastifyInstance) {
         return res.status(200).send({ data: [] });
       }
       const requestedAsset = readQueryValue(query.asset).toUpperCase();
-      const cryptoCurrency = isP2PAsset(requestedAsset)
-        ? requestedAsset
-        : '';
-      const paymentMethod = readQueryValue(query.paymentMethod);
+      const cryptoCurrency = !requestedAsset || requestedAsset === 'ALL'
+        ? ''
+        : isP2PAsset(requestedAsset)
+          ? requestedAsset
+          : null;
+      if (cryptoCurrency === null) {
+        return res.status(400).send({ message: 'Unsupported P2P crypto asset' });
+      }
+      const requestedPaymentMethod = readQueryValue(query.paymentMethod);
+      const paymentMethod = requestedPaymentMethod.toUpperCase() === 'ALL'
+        ? ''
+        : requestedPaymentMethod;
       const activeSince = new Date(Date.now() - ACTIVE_WINDOW_MS);
 
       const offers = await prisma.p2POffer.findMany({

@@ -56,11 +56,13 @@ describe('P2P market offer listing', () => {
     ));
     mocks.getP2PSpotPrice.mockResolvedValue(new Prisma.Decimal(50_000));
     mocks.getAvailableGiftCardValueAtPrice.mockReturnValue(new Prisma.Decimal(1_000));
-    mocks.offerFindMany.mockImplementation(async ({ where }: { where: { cryptoAsset: string; type: string } }) => [{
-      id: `${where.cryptoAsset}-${where.type}`,
+    mocks.offerFindMany.mockImplementation(async ({ where }: { where: { cryptoAsset: string | { in: string[] }; type: string } }) => {
+      const asset = typeof where.cryptoAsset === 'string' ? where.cryptoAsset : 'USDT';
+      return [{
+      id: `${asset}-${where.type}`,
       type: where.type,
       giftCardType: 'Any Gift Card',
-      cryptoAsset: where.cryptoAsset,
+      cryptoAsset: asset,
       minLimit: new Prisma.Decimal(10),
       maxLimit: new Prisma.Decimal(1000),
       exchangeRate: new Prisma.Decimal('0.8'),
@@ -72,10 +74,11 @@ describe('P2P market offer listing', () => {
         isOnline: false,
         onlineUntil: null,
         sellerProfile: { shopName: 'Merchant' },
-        wallets: [{ currency: where.cryptoAsset, availableBalance: new Prisma.Decimal(10) }],
+        wallets: [{ currency: asset, availableBalance: new Prisma.Decimal(10) }],
         profile: { username: 'merchant', displayName: 'Merchant', avatarUrl: null },
       },
-    }]);
+    }];
+    });
     mocks.offerUpdateMany.mockResolvedValue({ count: 0 });
     await app.register(p2pRoutes);
   });
@@ -112,5 +115,22 @@ describe('P2P market offer listing', () => {
       expect(mocks.offerFindMany.mock.calls[0][0].where).not.toHaveProperty('giftCardType');
     },
   );
+
+  it('treats ALL asset and payment filters as an unfiltered supported-asset listing', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/offers?type=BUY&asset=ALL&paymentMethod=ALL',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mocks.offerFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        isActive: true,
+        cryptoAsset: { in: ['USDT', 'BTC', 'ETH', 'BNB', 'SOL', 'LTC'] },
+        type: 'BUY',
+      }),
+    }));
+    expect(mocks.offerFindMany.mock.calls[0][0].where).not.toHaveProperty('giftCardType');
+  });
 
 });

@@ -401,8 +401,8 @@ function AdsView({ profile, loading, error, onPublished, editOffer }: { profile:
 export default function P2POffersPage() {
   const router = useRouter();
   const [marketSide, setMarketSide] = useState<'buy' | 'sell'>('buy');
-  const [selectedAsset, setSelectedAsset] = useState('USDT');
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
+  const [selectedAsset, setSelectedAsset] = useState('ALL');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('ALL');
   const [paymentDrawerOpen, setPaymentDrawerOpen] = useState(false);
   const [giftCardSearch, setGiftCardSearch] = useState('');
   const [activeNavigation, setActiveNavigation] = useState<'Profile' | 'Ads' | 'Orders' | 'P2P'>('P2P');
@@ -451,8 +451,8 @@ export default function P2POffersPage() {
     queryFn: async () => {
       const matchingOffers = await p2pService.getOffers({
         type: offerType,
-        asset: selectedAsset,
-        paymentMethod: selectedPaymentMethod || undefined,
+        asset: selectedAsset === 'ALL' ? undefined : selectedAsset,
+        paymentMethod: selectedPaymentMethod === 'ALL' ? undefined : selectedPaymentMethod,
       });
       return matchingOffers.filter((offer) => offer.tradeType === offerType);
     },
@@ -468,7 +468,7 @@ export default function P2POffersPage() {
   useEffect(() => {
     if (!presenceSocket) return;
     const handleP2POfferUpdate = (payload: { cryptoAsset?: string }) => {
-      if (!payload.cryptoAsset || payload.cryptoAsset === selectedAsset) void refreshOffers();
+      if (!payload.cryptoAsset || selectedAsset === 'ALL' || payload.cryptoAsset === selectedAsset) void refreshOffers();
     };
     presenceSocket.on('p2p:offers-updated', handleP2POfferUpdate);
     return () => {
@@ -551,7 +551,7 @@ export default function P2POffersPage() {
                   type="button"
                   onClick={() => {
                     setMarketSide(side);
-                    setSelectedPaymentMethod('');
+                    setSelectedPaymentMethod('ALL');
                   }}
                   aria-pressed={marketSide === side}
                   className={`rounded-lg px-5 py-2 text-sm font-semibold capitalize transition ${
@@ -570,12 +570,13 @@ export default function P2POffersPage() {
           <label className="relative min-w-[150px] flex-1 text-xs font-semibold text-slate-500">
             Crypto Asset
             <select value={selectedAsset} onChange={(event) => setSelectedAsset(event.target.value)} className="mt-1 w-full appearance-none rounded-xl border border-white/10 bg-[#0b0d14] p-3 pr-9 text-sm text-white outline-none">
+              <option value="ALL">ALL</option>
               {['USDT', 'BTC', 'ETH', 'BNB', 'SOL', 'LTC'].map((asset) => <option key={asset}>{asset}</option>)}
             </select>
             <ChevronDown className="pointer-events-none absolute bottom-3 right-3 h-4 w-4 text-slate-500" />
           </label>
           <button type="button" onClick={() => setPaymentDrawerOpen(true)} className="mt-4 flex min-w-[220px] flex-1 items-center justify-between rounded-xl border border-white/10 bg-[#0b0d14] px-3 py-3 text-left text-sm text-slate-300">
-            {selectedPaymentMethod || (marketSide === 'buy' ? 'Select Payment Method' : 'Select Gift Card You Want')}<ChevronDown className="h-4 w-4 text-slate-500" />
+            {selectedPaymentMethod === 'ALL' ? 'ALL' : selectedPaymentMethod || (marketSide === 'buy' ? 'Select Payment Method' : 'Select Gift Card You Want')}<ChevronDown className="h-4 w-4 text-slate-500" />
           </button>
           <Button variant="outline" onClick={() => void refreshOffers()} className="mt-4 border-white/10 text-slate-300"><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button>
         </div>
@@ -629,6 +630,7 @@ export default function P2POffersPage() {
             <div className="mt-4 flex items-center gap-3 rounded-xl border border-white/10 bg-[#0b0d14] px-3 transition focus-within:border-blue-400/60"><Search className="h-4 w-4 shrink-0 text-slate-500" /><input value={giftCardSearch} onChange={(event) => setGiftCardSearch(event.target.value)} placeholder="Search payment methods" className="w-full bg-transparent py-3 text-sm text-white outline-none placeholder:text-slate-600" /></div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+            <button type="button" onClick={() => { setSelectedPaymentMethod('ALL'); setPaymentDrawerOpen(false); }} className="mb-5 flex min-h-12 w-full items-center justify-between rounded-lg px-3 text-left text-sm font-semibold text-slate-200 transition hover:bg-white/[0.06] hover:text-white"><span>ALL payment methods</span>{selectedPaymentMethod === 'ALL' && <Check className="h-4 w-4 shrink-0 text-blue-400" />}</button>
             {[
               { title: 'POPULAR GIFT CARDS', cards: popularGiftCards, popular: true },
               { title: 'FIAT, BANKS & WALLETS', cards: AUTO_P2P_PAYMENT_METHODS, popular: false },
@@ -637,7 +639,7 @@ export default function P2POffersPage() {
               const filtered = cards.filter((card) => card.toLowerCase().includes(giftCardSearch.toLowerCase()));
               return <section key={title} className="mb-6 last:mb-0"><h3 className="text-xs font-semibold tracking-wider text-gray-500">{title}</h3><div className="mt-2 divide-y divide-white/5">{filtered.map((card) => <button key={card} type="button" onClick={() => { setSelectedPaymentMethod(card); setPaymentDrawerOpen(false); }} className="flex min-h-12 w-full items-center justify-between gap-3 rounded-lg px-3 text-left text-sm text-slate-300 transition hover:bg-white/[0.06] hover:text-white"><span>{card}{popular && <span className="ml-2 text-xs font-semibold text-orange-400">🔥 Hot</span>}</span>{selectedPaymentMethod === card && <Check className="h-4 w-4 shrink-0 text-blue-400" />}</button>)}</div></section>;
             })}
-            <button type="button" onClick={() => { setSelectedPaymentMethod(''); setPaymentDrawerOpen(false); }} className="mt-1 text-sm text-slate-500 transition hover:text-white">Clear payment method</button>
+            <button type="button" onClick={() => { setSelectedPaymentMethod('ALL'); setPaymentDrawerOpen(false); }} className="mt-1 text-sm text-slate-500 transition hover:text-white">Show all payment methods</button>
           </div>
         </div>
       </div>}
