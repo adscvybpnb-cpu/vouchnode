@@ -309,20 +309,25 @@ export default function WalletPage() {
       </div>
       {(message || error) && <div className={`rounded-xl border px-4 py-3 text-sm ${error ? 'border-red-400/30 bg-red-400/10 text-red-200' : 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200'}`}>{error || message}</div>}
 
-      {bonusEligibility && (
-        <section className="rounded-2xl border border-white/10 bg-[#141620] p-4 text-sm text-slate-300" aria-live="polite">
+      <section className="rounded-2xl border border-white/10 bg-[#141620] p-4 text-sm text-slate-300" aria-live="polite">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="font-semibold text-white">First-deposit bonus status</h2>
-              <p className="mt-1">
-                {bonusEligibility.status === 'BONUS_CLAIMED'
-                  ? `$${bonusEligibility.claim?.bonusAmount ?? bonusEligibility.bonusAmountUsdt} USDT bonus credited.`
-                  : bonusEligibility.status === 'LEGACY_DEPOSIT_BLOCKER'
-                    ? 'A confirmed legacy wallet deposit is present; this account is not eligible for the new-deposit bonus.'
-                    : bonusEligibility.status === 'QUALIFIED_BUT_NOT_CLAIMED'
-                      ? 'Completed deposits total at least $50, but no bonus claim is recorded.'
-                      : `Completed deposits: $${bonusEligibility.totalDepositedUsd.toFixed(2)} of $${bonusEligibility.minimumUsd.toFixed(2)} USD.`}
-              </p>
+              {bonusEligibility ? (
+                <p className="mt-1">
+                  {bonusEligibility.status === 'BONUS_CLAIMED'
+                    ? `$${bonusEligibility.claim?.bonusAmount ?? bonusEligibility.bonusAmountUsdt} USDT bonus credited.`
+                    : bonusEligibility.status === 'LEGACY_DEPOSIT_BLOCKER'
+                      ? 'A confirmed legacy wallet deposit is present; this account is not eligible for the new-deposit bonus.'
+                      : bonusEligibility.status === 'QUALIFIED_BUT_NOT_CLAIMED'
+                        ? 'Completed deposits total at least $50, but no bonus claim is recorded.'
+                        : `Completed deposits: $${bonusEligibility.totalDepositedUsd.toFixed(2)} of $${bonusEligibility.minimumUsd.toFixed(2)} USD.`}
+                </p>
+              ) : bonusEligibilityError ? (
+                <p className="mt-1 text-red-300">Unable to load bonus status. Check your connection and try again.</p>
+              ) : (
+                <p className="mt-1 text-slate-400">Loading your deposit and bonus status…</p>
+              )}
             </div>
             <Button
               type="button"
@@ -336,7 +341,7 @@ export default function WalletPage() {
               Check status
             </Button>
           </div>
-          {bonusEligibility.recentDeposits.length > 0 && (
+          {bonusEligibility && bonusEligibility.recentDeposits.length > 0 && (
             <ul className="mt-3 space-y-1 border-t border-white/5 pt-3 text-xs text-slate-400">
               {bonusEligibility.recentDeposits.map((deposit) => (
                 <li key={deposit.id}>
@@ -346,8 +351,7 @@ export default function WalletPage() {
               ))}
             </ul>
           )}
-        </section>
-      )}
+      </section>
 
       <section className="relative overflow-hidden rounded-3xl border border-emerald-400/20 bg-gradient-to-br from-[#17251f] via-[#111a19] to-[#11131c] p-4 shadow-2xl shadow-black/20 sm:p-7">
         <div className="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-emerald-400/10 blur-3xl" />
