@@ -11,7 +11,7 @@ vi.mock('../lib/prisma', () => ({
   prisma: {
     firstDepositBonus: { findUnique: vi.fn() },
     deposit: { findFirst: vi.fn() },
-    depositSession: { aggregate: vi.fn() },
+    depositSession: { aggregate: vi.fn(), findMany: vi.fn() },
   },
 }));
 
@@ -26,11 +26,19 @@ describe('first-deposit bonus eligibility threshold', () => {
     vi.mocked(prisma.depositSession.aggregate).mockResolvedValue({
       _sum: { usdAmount: new Prisma.Decimal('25') },
     } as any);
+    vi.mocked(prisma.depositSession.findMany).mockResolvedValue([] as any);
 
     await expect(FirstDepositBonusService.isEligible('user-1')).resolves.toBe(true);
     expect(prisma.firstDepositBonus.findUnique).toHaveBeenCalledWith({
       where: { userId: 'user-1' },
-      select: { id: true },
+      select: {
+        id: true,
+        depositSessionId: true,
+        depositCurrency: true,
+        depositUsdValue: true,
+        bonusAmount: true,
+        createdAt: true,
+      },
     });
   });
 
@@ -40,14 +48,23 @@ describe('first-deposit bonus eligibility threshold', () => {
     vi.mocked(prisma.depositSession.aggregate).mockResolvedValue({
       _sum: { usdAmount: new Prisma.Decimal('50') },
     } as any);
+    vi.mocked(prisma.depositSession.findMany).mockResolvedValue([] as any);
 
     await expect(FirstDepositBonusService.isEligible('user-1')).resolves.toBe(true);
   });
 
   it('hides the promotion after a bonus claim exists', async () => {
-    vi.mocked(prisma.firstDepositBonus.findUnique).mockResolvedValue({ id: 'claim-1' } as any);
+    vi.mocked(prisma.firstDepositBonus.findUnique).mockResolvedValue({
+      id: 'claim-1',
+      depositSessionId: 'session-1',
+      depositCurrency: 'USDT',
+      depositUsdValue: new Prisma.Decimal(50),
+      bonusAmount: new Prisma.Decimal(10),
+      createdAt: new Date(),
+    } as any);
     vi.mocked(prisma.deposit.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.depositSession.aggregate).mockResolvedValue({ _sum: { usdAmount: null } } as any);
+    vi.mocked(prisma.depositSession.findMany).mockResolvedValue([] as any);
 
     await expect(FirstDepositBonusService.isEligible('user-1')).resolves.toBe(false);
   });

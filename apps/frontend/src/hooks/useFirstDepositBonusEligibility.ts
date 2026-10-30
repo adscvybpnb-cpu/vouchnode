@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/services/api.client';
 import { hasUsableAccessToken, useAuthStore } from '@/store/auth.store';
@@ -9,6 +9,31 @@ export type FirstDepositBonusEligibility = {
   eligible: boolean;
   claimed: boolean;
   totalDepositedUsd: number;
+  status: 'BONUS_CLAIMED' | 'LEGACY_DEPOSIT_BLOCKER' | 'QUALIFIED_BUT_NOT_CLAIMED' | 'DEPOSIT_PROGRESS';
+  minimumUsd: number;
+  bonusAmountUsdt: number;
+  claim: {
+    depositSessionId: string;
+    depositCurrency: string;
+    depositUsdValue: number;
+    bonusAmount: number;
+    createdAt: string;
+  } | null;
+  recentDeposits: Array<{
+    id: string;
+    status: string;
+    currency: string;
+    network: string;
+    amount: number;
+    usdAmount: number;
+    completedAt: string | null;
+  }>;
+  hasConfirmedLegacyDeposit: boolean;
+  confirmedLegacyDeposit: {
+    currency: string;
+    amount: number | null;
+    confirmedAt: string | null;
+  } | null;
 };
 
 export const firstDepositBonusEligibilityQueryKey = (userId: string) => [
@@ -28,7 +53,9 @@ function getCachedEligibility(userId: string): FirstDepositBonusEligibility | un
       typeof parsed !== 'object' ||
       typeof (parsed as FirstDepositBonusEligibility).eligible !== 'boolean' ||
       typeof (parsed as FirstDepositBonusEligibility).claimed !== 'boolean' ||
-      typeof (parsed as FirstDepositBonusEligibility).totalDepositedUsd !== 'number'
+      typeof (parsed as FirstDepositBonusEligibility).totalDepositedUsd !== 'number' ||
+      typeof (parsed as FirstDepositBonusEligibility).status !== 'string' ||
+      !Array.isArray((parsed as FirstDepositBonusEligibility).recentDeposits)
     ) return undefined;
     return parsed as FirstDepositBonusEligibility;
   } catch (error) {
@@ -42,7 +69,7 @@ export function useFirstDepositBonusEligibility() {
   const hasSession = isAuthenticated && hasUsableAccessToken(accessToken);
   const userId = user?.id;
   const queryClient = useQueryClient();
-  const queryKey = firstDepositBonusEligibilityQueryKey(userId ?? '');
+  const queryKey = useMemo(() => firstDepositBonusEligibilityQueryKey(userId ?? ''), [userId]);
   const query = useQuery({
     queryKey,
     enabled: hasHydrated && hasSession && Boolean(userId),
@@ -77,9 +104,17 @@ export function useFirstDepositBonusEligibility() {
     const markBonusClaimed = () => {
       if (!hasSession || !userId) return;
       queryClient.setQueryData<FirstDepositBonusEligibility>(queryKey, (current) => ({
+        ...current,
         eligible: false,
         claimed: true,
         totalDepositedUsd: current?.totalDepositedUsd ?? 50,
+        status: 'BONUS_CLAIMED',
+        minimumUsd: current?.minimumUsd ?? 50,
+        bonusAmountUsdt: current?.bonusAmountUsdt ?? 10,
+        claim: current?.claim ?? null,
+        recentDeposits: current?.recentDeposits ?? [],
+        hasConfirmedLegacyDeposit: current?.hasConfirmedLegacyDeposit ?? false,
+        confirmedLegacyDeposit: current?.confirmedLegacyDeposit ?? null,
       }));
     };
     window.addEventListener('wallet:updated', refreshEligibility);
