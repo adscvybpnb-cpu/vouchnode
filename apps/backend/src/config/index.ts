@@ -109,6 +109,7 @@ export const config = {
     prices: {
       coinMarketCapApiKey: env.COINMARKETCAP_API_KEY,
       cryptoCompareApiKey: env.CRYPTOCOMPARE_API_KEY,
+      liveCoinWatchApiKey: env.LIVECOINWATCH_API_KEY,
     },
   },
   blockchain: {

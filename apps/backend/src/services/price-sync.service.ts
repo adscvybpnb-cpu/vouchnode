@@ -46,6 +46,39 @@ const COIN_LORE_IDS: Record<string, string> = {
   ETH: '80',
   LTC: '1',
 };
+const USDT_PAIRS: Record<string, string> = {
+  BTC: 'BTCUSDT',
+  BCH: 'BCHUSDT',
+  TRX: 'TRXUSDT',
+  BNB: 'BNBUSDT',
+  SOL: 'SOLUSDT',
+  ETH: 'ETHUSDT',
+  LTC: 'LTCUSDT',
+};
+const KUCOIN_PAIRS: Record<string, string> = Object.fromEntries(
+  Object.entries(USDT_PAIRS).map(([asset, pair]) => [asset, pair.replace('USDT', '-USDT')]),
+);
+const GATE_IO_PAIRS: Record<string, string> = Object.fromEntries(
+  Object.entries(USDT_PAIRS).map(([asset, pair]) => [asset, pair.replace('USDT', '_USDT')]),
+);
+const OKX_PAIRS: Record<string, string> = Object.fromEntries(
+  Object.entries(USDT_PAIRS).map(([asset, pair]) => [asset, pair.replace('USDT', '-USDT')]),
+);
+const BITFINEX_PAIRS: Record<string, string> = Object.fromEntries(
+  Object.keys(USDT_PAIRS).map((asset) => [asset, `t${asset}USD`]),
+);
+const HTX_PAIRS: Record<string, string> = Object.fromEntries(
+  Object.entries(USDT_PAIRS).map(([asset, pair]) => [asset, pair.toLowerCase()]),
+);
+const KRAKEN_PAIRS: Record<string, string> = {
+  BTC: 'XBTUSD',
+  BCH: 'BCHUSD',
+  TRX: 'TRXUSD',
+  BNB: 'BNBUSD',
+  SOL: 'SOLUSD',
+  ETH: 'ETHUSD',
+  LTC: 'LTCUSD',
+};
 const STABLECOIN_RATES = { USDT: 1, USDC: 1 };
 const CRYPTO_TTL_MS = 60_000;
 const REQUEST_TIMEOUT_MS = 3_000;
@@ -137,14 +170,31 @@ export class PriceSyncService {
     const providers: Array<{ name: string; fetch: () => Promise<Rates> }> = [
       { name: 'CoinGecko', fetch: () => this.fetchCoinGecko() },
       { name: 'Binance', fetch: () => this.fetchBinance() },
-      { name: 'CryptoCompare', fetch: () => this.fetchCryptoCompare() },
       { name: 'CoinMarketCap', fetch: () => this.fetchCoinMarketCap() },
+      { name: 'CryptoCompare', fetch: () => this.fetchCryptoCompare() },
+      { name: 'KuCoin', fetch: () => this.fetchKuCoin() },
+      { name: 'Gate.io', fetch: () => this.fetchGateIo() },
+      { name: 'OKX', fetch: () => this.fetchOkx() },
+      { name: 'Bybit', fetch: () => this.fetchBybit() },
+      { name: 'MEXC', fetch: () => this.fetchMexc() },
+      { name: 'Bitfinex', fetch: () => this.fetchBitfinex() },
+      { name: 'HTX', fetch: () => this.fetchHtx() },
+      { name: 'Kraken', fetch: () => this.fetchKraken() },
       { name: 'CoinCap', fetch: () => this.fetchCoinCap() },
       { name: 'CoinLore', fetch: () => this.fetchCoinLore() },
+      { name: 'LiveCoinWatch', fetch: () => this.fetchLiveCoinWatch() },
     ];
     for (const provider of providers) {
       if (provider.name === 'CoinMarketCap' && !config.crypto.prices.coinMarketCapApiKey) {
         failures.push('CoinMarketCap: skipped; COINMARKETCAP_API_KEY is not configured');
+        continue;
+      }
+      if (provider.name === 'CryptoCompare' && !config.crypto.prices.cryptoCompareApiKey) {
+        failures.push('CryptoCompare: skipped; CRYPTOCOMPARE_API_KEY is not configured');
+        continue;
+      }
+      if (provider.name === 'LiveCoinWatch' && !config.crypto.prices.liveCoinWatchApiKey) {
+        failures.push('LiveCoinWatch: skipped; LIVECOINWATCH_API_KEY is not configured');
         continue;
       }
       try {
@@ -158,8 +208,13 @@ export class PriceSyncService {
     throw new Error(`All live crypto price providers failed. ${failures.join('; ')}`);
   }
 
-  private static async fetchJson<T>(url: string, headers: Record<string, string> = {}): Promise<T> {
+  private static async fetchJson<T>(
+    url: string,
+    headers: Record<string, string> = {},
+    request: Omit<RequestInit, 'headers' | 'signal'> = {},
+  ): Promise<T> {
     const response = await fetch(url, {
+      ...request,
       headers: { accept: 'application/json', ...headers },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
@@ -201,15 +256,122 @@ export class PriceSyncService {
 
   private static async fetchCryptoCompare(): Promise<Rates> {
     const symbols = Object.keys(COIN_GECKO_IDS).join(',');
-    const headers = config.crypto.prices.cryptoCompareApiKey
-      ? { authorization: `Apikey ${config.crypto.prices.cryptoCompareApiKey}` }
-      : {};
+    const headers = { authorization: `Apikey ${config.crypto.prices.cryptoCompareApiKey}` };
     const payload = await this.fetchJson<Record<string, { USD?: number }>>(
       `https://min-api.cryptocompare.com/data/pricemulti?fsyms=${encodeURIComponent(symbols)}&tsyms=USD`,
       headers,
     );
     return this.validateRates(Object.fromEntries(
       Object.keys(COIN_GECKO_IDS).map((symbol) => [symbol, payload[symbol]?.USD]),
+    ));
+  }
+
+  private static async fetchKuCoin(): Promise<Rates> {
+    const payload = await this.fetchJson<{
+      data?: { ticker?: Array<{ symbol?: string; last?: string }> };
+    }>('https://api.kucoin.com/api/v1/market/allTickers');
+    const prices = new Map((payload.data?.ticker ?? []).map((ticker) => [ticker.symbol, Number(ticker.last)]));
+    return this.validateRates(Object.fromEntries(
+      Object.entries(KUCOIN_PAIRS).map(([asset, pair]) => [asset, prices.get(pair)]),
+    ));
+  }
+
+  private static async fetchGateIo(): Promise<Rates> {
+    const payload = await this.fetchJson<Array<{ currency_pair?: string; last?: string }>>(
+      'https://api.gateio.ws/api/v4/spot/tickers',
+    );
+    const prices = new Map((payload ?? []).map((ticker) => [ticker.currency_pair, Number(ticker.last)]));
+    return this.validateRates(Object.fromEntries(
+      Object.entries(GATE_IO_PAIRS).map(([asset, pair]) => [asset, prices.get(pair)]),
+    ));
+  }
+
+  private static async fetchOkx(): Promise<Rates> {
+    const payload = await this.fetchJson<{
+      data?: Array<{ instId?: string; last?: string }>;
+    }>('https://www.okx.com/api/v5/market/tickers?instType=SPOT');
+    const prices = new Map((payload.data ?? []).map((ticker) => [ticker.instId, Number(ticker.last)]));
+    return this.validateRates(Object.fromEntries(
+      Object.entries(OKX_PAIRS).map(([asset, pair]) => [asset, prices.get(pair)]),
+    ));
+  }
+
+  private static async fetchBybit(): Promise<Rates> {
+    const payload = await this.fetchJson<{
+      result?: { list?: Array<{ symbol?: string; lastPrice?: string }> };
+    }>('https://api.bybit.com/v5/market/tickers?category=spot');
+    const prices = new Map((payload.result?.list ?? []).map((ticker) => [
+      ticker.symbol,
+      Number(ticker.lastPrice),
+    ]));
+    return this.validateRates(Object.fromEntries(
+      Object.entries(USDT_PAIRS).map(([asset, pair]) => [asset, prices.get(pair)]),
+    ));
+  }
+
+  private static async fetchMexc(): Promise<Rates> {
+    const payload = await this.fetchJson<Array<{ symbol?: string; price?: string }>>(
+      'https://api.mexc.com/api/v3/ticker/price',
+    );
+    const prices = new Map((payload ?? []).map((ticker) => [ticker.symbol, Number(ticker.price)]));
+    return this.validateRates(Object.fromEntries(
+      Object.entries(USDT_PAIRS).map(([asset, pair]) => [asset, prices.get(pair)]),
+    ));
+  }
+
+  private static async fetchBitfinex(): Promise<Rates> {
+    const symbols = Object.values(BITFINEX_PAIRS).join(',');
+    const payload = await this.fetchJson<Array<Array<string | number>>>(
+      `https://api-pub.bitfinex.com/v2/tickers?symbols=${encodeURIComponent(symbols)}`,
+    );
+    const prices = new Map(payload.map((ticker) => [String(ticker[0]), Number(ticker[7])]));
+    return this.validateRates(Object.fromEntries(
+      Object.entries(BITFINEX_PAIRS).map(([asset, pair]) => [asset, prices.get(pair)]),
+    ));
+  }
+
+  private static async fetchHtx(): Promise<Rates> {
+    const payload = await this.fetchJson<{
+      data?: Array<{ symbol?: string; close?: number }>;
+    }>('https://api.huobi.pro/market/tickers');
+    const prices = new Map((payload.data ?? []).map((ticker) => [ticker.symbol, Number(ticker.close)]));
+    return this.validateRates(Object.fromEntries(
+      Object.entries(HTX_PAIRS).map(([asset, pair]) => [asset, prices.get(pair)]),
+    ));
+  }
+
+  private static async fetchKraken(): Promise<Rates> {
+    const prices = await Promise.all(Object.entries(KRAKEN_PAIRS).map(async ([asset, pair]) => {
+      const payload = await this.fetchJson<{
+        result?: Record<string, { c?: [string, string] }>;
+      }>(`https://api.kraken.com/0/public/Ticker?pair=${encodeURIComponent(pair)}`);
+      const ticker = Object.values(payload.result ?? {})[0];
+      return [asset, ticker?.c?.[0] ? Number(ticker.c[0]) : undefined] as const;
+    }));
+    return this.validateRates(Object.fromEntries(prices));
+  }
+
+  private static async fetchLiveCoinWatch(): Promise<Rates> {
+    const payload = await this.fetchJson<Array<{ code?: string; rate?: number }>>(
+      'https://api.livecoinwatch.com/coins/map',
+      {
+        'content-type': 'application/json',
+        'x-api-key': config.crypto.prices.liveCoinWatchApiKey ?? '',
+      },
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          currency: 'USD',
+          codes: Object.keys(COIN_GECKO_IDS),
+          sort: 'rank',
+          order: 'ascending',
+          offset: 0,
+          limit: Object.keys(COIN_GECKO_IDS).length,
+        }),
+      },
+    );
+    return this.validateRates(Object.fromEntries(
+      (payload ?? []).map((coin) => [coin.code ?? '', coin.rate]),
     ));
   }
 

@@ -113,6 +113,7 @@ const envSchema = z.object({
   NOWPAYMENTS_IPN_SECRET: z.string().optional(),
   COINMARKETCAP_API_KEY: z.string().optional(),
   CRYPTOCOMPARE_API_KEY: z.string().optional(),
+  LIVECOINWATCH_API_KEY: z.string().optional(),
   ALCHEMY_WEBHOOK_SIGNING_KEY: z.string().optional(),
   PRIVATE_RPC_ARB: z.string().default(''),
   PRIVATE_RPC_ETH: z.string().default(''),

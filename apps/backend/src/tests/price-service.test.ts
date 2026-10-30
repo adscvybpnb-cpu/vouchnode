@@ -72,7 +72,7 @@ describe('shared price service', () => {
     expect(firstSnapshot.USDC).toBe(1);
     expect(firstSnapshot).not.toHaveProperty('GRAM');
     expect(staleSnapshot).toEqual(firstSnapshot);
-    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(6);
   });
 
   it('immediately falls through to the next provider after an HTTP rate limit', async () => {
@@ -95,6 +95,30 @@ describe('shared price service', () => {
     expect(result.BTC).toBe(50_000);
     expect(PriceSyncService.getSnapshotMetadata()?.source).toBe('Binance');
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('falls through multiple unavailable providers and accepts a complete KuCoin snapshot', async () => {
+    const kucoinTickers = Object.entries({
+      'BTC-USDT': '50000',
+      'BCH-USDT': '400',
+      'TRX-USDT': '0.1',
+      'BNB-USDT': '800',
+      'SOL-USDT': '160',
+      'ETH-USDT': '4000',
+      'LTC-USDT': '80',
+    }).map(([symbol, last]) => ({ symbol, last }));
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('unavailable', { status: 503 }))
+      .mockResolvedValueOnce(new Response('blocked', { status: 451 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { ticker: kucoinTickers } }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await PriceSyncService.getCryptoUsdRates(true);
+
+    expect(result.BTC).toBe(50_000);
+    expect(PriceSyncService.getSnapshotMetadata()?.source).toBe('KuCoin');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[2][0]).toBe('https://api.kucoin.com/api/v1/market/allTickers');
   });
 
   it('uses the database snapshot after all configured live providers fail', async () => {

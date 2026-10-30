@@ -59,10 +59,17 @@ pnpm dev
 | `CRYPTO_PROVIDER` | Payments backend | `nowpayments`, `manual` |
 | `CRYPTOCOMPARE_API_KEY` | Optional CryptoCompare price-provider key; enables authenticated fallback requests | Secret value |
 | `COINMARKETCAP_API_KEY` | Optional CoinMarketCap price-provider key; enables this fallback tier | Secret value |
+| `LIVECOINWATCH_API_KEY` | Optional LiveCoinWatch price-provider key; enables this fallback tier | Secret value |
 
-Crypto USD prices use sequential CoinGecko, Binance, CryptoCompare,
-CoinMarketCap (when configured), CoinCap, and CoinLore providers. Validated
-snapshots are also persisted in PostgreSQL for last-known-price fallback.
+Crypto USD prices use sequential CoinGecko, Binance, CoinMarketCap,
+CryptoCompare, KuCoin, Gate.io, OKX, Bybit, MEXC, Bitfinex, HTX, Kraken,
+CoinCap, CoinLore, and LiveCoinWatch providers. CoinMarketCap,
+CryptoCompare, and LiveCoinWatch are skipped unless their API keys are set.
+Each provider has a three-second request timeout and must return valid rates
+for every supported volatile asset. Validated snapshots are also persisted in
+PostgreSQL as the final last-known-price fallback. Blockchain RPC vendors such
+as Alchemy or Infura are not price feeds and are not used as market-price
+providers.
 
 *Refer to `.env.example` for the complete list.*
 
