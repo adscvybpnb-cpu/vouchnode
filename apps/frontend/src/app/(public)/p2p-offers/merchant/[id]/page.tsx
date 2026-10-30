@@ -70,9 +70,7 @@ export default function PublicMerchantProfilePage() {
     reviewsPage * reviewsPerPage,
   );
   const ownProfile = profile?.id === currentUser?.id ? currentUser : null;
-  const displayName = cleanP2PName(ownProfile
-    ? ownProfile.displayName || ownProfile.username
-    : profile?.displayName || '');
+  const displayName = cleanP2PName(profile?.merchantName || profile?.displayName || ownProfile?.displayName || ownProfile?.username || '');
   const username = cleanP2PName(ownProfile?.username || profile?.username || '');
   const avatarUrl = ownProfile ? ownProfile.avatarUrl : profile?.avatarUrl;
 

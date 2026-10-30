@@ -125,6 +125,7 @@ export default async function p2pRoutes(app: FastifyInstance) {
               lastLoginAt: true,
               isOnline: true,
               onlineUntil: true,
+              sellerProfile: { select: { shopName: true } },
               profile: { select: { username: true, displayName: true, avatarUrl: true } }
             }
           }
@@ -169,7 +170,7 @@ export default async function p2pRoutes(app: FastifyInstance) {
       const isOnline = offer.user.isOnline &&
         (!offer.user.onlineUntil || offer.user.onlineUntil.getTime() > Date.now());
       const username = offer.user.profile?.username || offer.user.id;
-      const displayName = offer.user.profile?.displayName || username;
+      const displayName = offer.user.sellerProfile?.shopName || offer.user.profile?.displayName || username;
       return res.status(200).send({
         data: {
           id: offer.id,
@@ -280,6 +281,7 @@ export default async function p2pRoutes(app: FastifyInstance) {
               lastLoginAt: true,
               isOnline: true,
               onlineUntil: true,
+              sellerProfile: { select: { shopName: true } },
               wallets: {
                 where: { currency: { in: SUPPORTED_CURRENCIES } },
                 select: { currency: true, availableBalance: true },
@@ -333,7 +335,7 @@ export default async function p2pRoutes(app: FastifyInstance) {
           const isOnline = offer.user.isOnline &&
             (!offer.user.onlineUntil || offer.user.onlineUntil.getTime() > Date.now());
           const username = offer.user.profile?.username || offer.user.id;
-          const displayName = offer.user.profile?.displayName || username;
+          const displayName = offer.user.sellerProfile?.shopName || offer.user.profile?.displayName || username;
           const isActiveWithinFiveMinutes = isOnline || lastActiveAt >= activeSince;
           return {
             id: offer.id,

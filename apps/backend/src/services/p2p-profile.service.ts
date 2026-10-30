@@ -205,6 +205,7 @@ export class P2PProfileService {
         emailVerified: true, kycStatus: true, twoFactorEnabled: true,
         isOnline: true, onlineUntil: true, createdAt: true,
         profile: { select: { username: true, displayName: true, avatarUrl: true, isIdentityVerified: true, avgPaymentSpeedMins: true } },
+        sellerProfile: { select: { shopName: true } },
         depositSessions: { where: { status: 'COMPLETED' }, select: { id: true } },
         p2pOffers: { where: { isActive: true }, orderBy: { updatedAt: 'desc' } },
         reviewsReceived: {
@@ -219,7 +220,8 @@ export class P2PProfileService {
     return {
       id: userId,
       username: user.profile?.username || 'P2P Merchant',
-      displayName: user.profile?.displayName || user.profile?.username || 'P2P Merchant',
+      merchantName: user.sellerProfile?.shopName || null,
+      displayName: user.sellerProfile?.shopName || user.profile?.displayName || user.profile?.username || 'P2P Merchant',
       avatarUrl: normalizeAvatarUrl(user.profile?.avatarUrl),
       isOnline: user.isOnline && (!user.onlineUntil || user.onlineUntil.getTime() > Date.now()),
       createdAt: user.createdAt,

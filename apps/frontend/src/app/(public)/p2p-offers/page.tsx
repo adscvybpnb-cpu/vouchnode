@@ -95,9 +95,9 @@ function MerchantProfileView({ profile, loading, error, currentUser }: { profile
     ['Identity', profile.verification.identity],
     ['Deposit', profile.verification.hasP2PInsuranceDeposit]
   ] as const;
-  const displayName = cleanP2PName(profile.id === currentUser?.id
+  const displayName = cleanP2PName(profile.merchantName || (profile.id === currentUser?.id
     ? currentUser.displayName || currentUser.username
-    : profile.displayName);
+    : profile.displayName));
   const username = cleanP2PName(profile.id === currentUser?.id ? currentUser.username : profile.username);
   const avatarUrl = profile.id === currentUser?.id ? currentUser.avatarUrl : profile.avatarUrl;
   return (
@@ -592,9 +592,8 @@ export default function P2POffersPage() {
             </div>
           )) : offers.length === 0 ? <div className="rounded-2xl border border-white/10 bg-[#11141d] p-12 text-center text-slate-400">No active merchant offers match these filters.</div> : offers.map((offer) => {
             const ownProfile = offer.userId === user?.id ? user : null;
-            const merchantName = cleanP2PName(ownProfile
-              ? ownProfile.displayName || ownProfile.username
-              : offer.merchant?.displayName || offer.merchantName);
+            const merchantName = cleanP2PName(offer.merchant?.displayName || offer.merchantName ||
+              ownProfile?.displayName || ownProfile?.username || offer.username);
             const merchantUsername = cleanP2PName(ownProfile?.username || offer.merchant?.username || offer.username);
             const merchantAvatarUrl = ownProfile?.avatarUrl || offer.merchant?.avatarUrl || offer.avatarUrl;
             return (
@@ -602,7 +601,8 @@ export default function P2POffersPage() {
                 <Link href={`/p2p-offers/merchant/${offer.merchantId}`} className="flex min-w-0 flex-1 items-center gap-2 rounded-lg transition hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 sm:gap-3">
                   <P2PMerchantAvatar name={merchantName} avatarUrl={merchantAvatarUrl} className="h-9 w-9 rounded-full text-sm sm:h-11 sm:w-11" />
                   <div className="min-w-0">
-                    <div className="flex min-w-0 items-center gap-1.5"><p className="truncate text-sm font-bold text-white sm:text-base">{merchantUsername}</p><span className={`h-2 w-2 shrink-0 rounded-full ${offer.isOnline ? 'bg-emerald-400' : 'bg-slate-600'}`} /></div>
+                    <div className="flex min-w-0 items-center gap-1.5"><p className="truncate text-sm font-bold text-white sm:text-base">{merchantName}</p><span className={`h-2 w-2 shrink-0 rounded-full ${offer.isOnline ? 'bg-emerald-400' : 'bg-slate-600'}`} /></div>
+                    {merchantUsername.toLowerCase() !== merchantName.toLowerCase() && <p className="mt-0.5 truncate text-[11px] text-slate-500">@{merchantUsername}</p>}
                     <p className="mt-0.5 truncate text-[11px] text-slate-500 sm:text-xs">{offer.tradeVolume.toLocaleString()} trades · {offer.completionRate.toFixed(1)}% completion</p>
                     <span className="mt-1 inline-block max-w-full truncate rounded bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">{offer.giftCardType}</span>
                   </div>

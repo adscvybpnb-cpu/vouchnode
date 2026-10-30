@@ -39,6 +39,7 @@ export type P2PProfile = {
   id: string;
   username: string;
   displayName: string;
+  merchantName?: string | null;
   avatarUrl: string | null;
   isOnline: boolean;
   createdAt: string;
