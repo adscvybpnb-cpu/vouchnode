@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Send } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { APP_NAME } from '@/lib/constants';
 import { siteConfigService } from '@/services/site-config.service';
@@ -65,6 +66,18 @@ export function Footer() {
       </div>
       <div className="container mx-auto flex flex-col items-center justify-between border-t border-border px-4 pt-6 text-sm text-muted-foreground sm:flex-row">
         <p translate="no" className="notranslate">© {new Date().getFullYear()} VouchNodes. All rights reserved.</p>
+        <div className="mt-4 flex items-center gap-3 sm:mt-0">
+          <span className="text-xs uppercase tracking-wider">Social</span>
+          <a
+            href="https://t.me/vouchnodes"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Visit VouchNodes on Telegram (opens in a new tab)"
+            className="rounded-full border border-border p-2 text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+          >
+            <Send aria-hidden="true" className="h-4 w-4" />
+          </a>
+        </div>
         <div translate="no" className="notranslate mt-4 flex gap-4 sm:mt-0">
           <span translate="no" className="notranslate">USDT</span>
           <span translate="no" className="notranslate">BTC</span>
