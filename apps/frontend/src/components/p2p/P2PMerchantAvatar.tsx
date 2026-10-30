@@ -16,9 +16,14 @@ export const P2PMerchantAvatar = memo(function P2PMerchantAvatar({
   className,
   imageClassName = 'h-full w-full object-cover',
 }: P2PMerchantAvatarProps) {
-  const resolvedAvatarUrl = avatarUrl?.startsWith('/')
-    ? `${API_ORIGIN}${avatarUrl}`
-    : avatarUrl;
+  const rawAvatarUrl = avatarUrl?.trim();
+  const resolvedAvatarUrl = rawAvatarUrl
+    ? /^https?:\/\//i.test(rawAvatarUrl) || /^(data|blob):/i.test(rawAvatarUrl)
+      ? rawAvatarUrl
+      : API_ORIGIN
+        ? new URL(rawAvatarUrl, `${API_ORIGIN}/`).toString()
+        : rawAvatarUrl
+    : null;
   const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
   const [avatarLoaded, setAvatarLoaded] = useState(false);
 

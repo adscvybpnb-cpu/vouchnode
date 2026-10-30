@@ -10,6 +10,7 @@ export type P2POffer = {
     displayName: string;
     avatarUrl: string | null;
   };
+  profile?: { avatarUrl?: string | null };
   merchantName: string;
   username: string;
   avatarUrl: string | null;
@@ -93,7 +94,21 @@ export const p2pService = {
   async getOffer(id: string) {
     const response = await apiClient.get<P2POffer>(`/p2p/offers/${encodeURIComponent(id)}`);
     if (response.error) throw new Error(response.error);
-    return response.data!;
+    const offer = response.data;
+    if (!offer) throw new Error('P2P offer response was empty.');
+    const avatarUrl = offer.merchant?.avatarUrl || offer.avatarUrl || offer.profile?.avatarUrl || null;
+    return {
+      ...offer,
+      avatarUrl,
+      merchant: offer.merchant
+        ? { ...offer.merchant, avatarUrl }
+        : {
+            id: offer.merchantId,
+            username: offer.username,
+            displayName: offer.merchantName,
+            avatarUrl,
+          },
+    };
   },
   async createOrder(data: { offerId: string; giftCardValueUSD: number }) {
     const response = await apiClient.post<{ order: P2POrderDetail; conversationId: string }>('/p2p/orders', data);
