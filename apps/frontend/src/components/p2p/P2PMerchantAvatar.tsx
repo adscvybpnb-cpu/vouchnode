@@ -18,11 +18,23 @@ export const P2PMerchantAvatar = memo(function P2PMerchantAvatar({
 }: P2PMerchantAvatarProps) {
   const rawAvatarUrl = avatarUrl?.trim();
   const resolvedAvatarUrl = rawAvatarUrl
-    ? /^https?:\/\//i.test(rawAvatarUrl) || /^(data|blob):/i.test(rawAvatarUrl)
-      ? rawAvatarUrl
-      : API_ORIGIN
-        ? new URL(rawAvatarUrl, `${API_ORIGIN}/`).toString()
-        : rawAvatarUrl
+    ? (() => {
+        if (/^(data|blob):/i.test(rawAvatarUrl)) return rawAvatarUrl;
+        const baseUrl = API_ORIGIN || (typeof window !== 'undefined' ? window.location.origin : '');
+        const isAbsoluteUrl = /^[a-z][a-z\d+.-]*:/i.test(rawAvatarUrl) || rawAvatarUrl.startsWith('//');
+        if (!baseUrl && !isAbsoluteUrl) return rawAvatarUrl;
+        const url = baseUrl
+          ? new URL(rawAvatarUrl, `${baseUrl}/`)
+          : new URL(rawAvatarUrl);
+        const isIpAddress = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(url.hostname) || url.hostname.includes(':');
+        if (url.protocol === 'http:' && baseUrl.startsWith('https://')) {
+          if (isIpAddress) {
+            return new URL(`${url.pathname}${url.search}${url.hash}`, baseUrl).toString();
+          }
+          url.protocol = 'https:';
+        }
+        return url.toString();
+      })()
     : null;
   const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
   const [loadedAvatarUrl, setLoadedAvatarUrl] = useState<string | null>(null);

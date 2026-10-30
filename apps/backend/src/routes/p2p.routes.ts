@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma';
 import { authenticate } from '../middleware/auth.middleware';
 import { P2PProfileService } from '../services/p2p-profile.service';
 import { P2POrderService } from '../services/p2p-order.service';
+import { normalizeAvatarUrl } from '../services/avatar-url.service';
 import {
   getAvailableGiftCardValueAtPrice,
   getP2PSpotPrice,
@@ -178,11 +179,11 @@ export default async function p2pRoutes(app: FastifyInstance) {
             id: offer.user.id,
             username,
             displayName,
-            avatarUrl: offer.user.profile?.avatarUrl || null,
+            avatarUrl: normalizeAvatarUrl(offer.user.profile?.avatarUrl),
           },
           merchantName: displayName,
           username,
-          avatarUrl: offer.user.profile?.avatarUrl || null,
+          avatarUrl: normalizeAvatarUrl(offer.user.profile?.avatarUrl),
           completionRate: tradeMetrics?.completionRate ?? 0,
           cryptoCurrency: offer.cryptoAsset,
           cryptoUsdPrice: Number(cryptoUsdPrice),
@@ -342,11 +343,11 @@ export default async function p2pRoutes(app: FastifyInstance) {
               id: offer.user.id,
               username,
               displayName,
-              avatarUrl: offer.user.profile?.avatarUrl || null,
+              avatarUrl: normalizeAvatarUrl(offer.user.profile?.avatarUrl),
             },
             merchantName: displayName,
             username,
-            avatarUrl: offer.user.profile?.avatarUrl || null,
+            avatarUrl: normalizeAvatarUrl(offer.user.profile?.avatarUrl),
             completionRate: tradeMetrics.completionRate,
             cryptoCurrency: offer.cryptoAsset,
             giftCardRate: Number(offer.exchangeRate),

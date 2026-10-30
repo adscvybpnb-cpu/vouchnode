@@ -4,6 +4,7 @@ import {
   isP2PAsset,
   quoteP2PTrade,
 } from './p2p-pricing.service';
+import { normalizeAvatarUrl } from './avatar-url.service';
 
 type P2PTradeMetrics = {
   thirtyDayOrders: number;
@@ -219,7 +220,7 @@ export class P2PProfileService {
       id: userId,
       username: user.profile?.username || 'P2P Merchant',
       displayName: user.profile?.displayName || user.profile?.username || 'P2P Merchant',
-      avatarUrl: user.profile?.avatarUrl || null,
+      avatarUrl: normalizeAvatarUrl(user.profile?.avatarUrl),
       isOnline: user.isOnline && (!user.onlineUntil || user.onlineUntil.getTime() > Date.now()),
       createdAt: user.createdAt,
       verification: {
