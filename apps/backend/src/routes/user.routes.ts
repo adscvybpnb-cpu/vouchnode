@@ -7,7 +7,6 @@ import { z } from 'zod';
 import { DepositScannerService } from '../services/deposit-scanner.service';
 import { config } from '../config';
 import { isTestPaymentSimulationAuthorized } from '../middleware/test-payment-simulation';
-import { FirstDepositBonusService } from '../services/first-deposit-bonus.service';
 import { TelegramBotService } from '../integrations/telegram/telegram.bot';
 import { prisma } from '../lib/prisma';
 import { UserService } from '../services/user.service';
@@ -194,19 +193,6 @@ export default async function walletRoutes(app: FastifyInstance) {
 
   app.get('/assets', async (req: any, res) => {
     return res.send(await WalletService.supportedAssets());
-  });
-
-  app.get('/first-deposit-bonus/eligibility', async (req: any, res) => {
-    try {
-      return res.send(await FirstDepositBonusService.getEligibility(req.user.id));
-    } catch (error) {
-      req.log.error(error, 'Unable to load first-deposit bonus eligibility');
-      return res.status(500).send({
-        statusCode: 500,
-        error: 'Promotion Eligibility Unavailable',
-        message: 'Unable to check first-deposit bonus eligibility.',
-      });
-    }
   });
 
   app.get('/transactions', async (req: any, res) => {
