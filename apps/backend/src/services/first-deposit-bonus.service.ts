@@ -11,7 +11,7 @@ export function meetsFirstDepositBonusThreshold(totalDepositedUsd: Prisma.Decima
 
 export class FirstDepositBonusService {
   static async getEligibility(userId: string) {
-    const [claimedBonus, priorLegacyDeposit, deposits, depositTotals] = await Promise.all([
+    const [claimedBonus, priorLegacyDeposit, depositTotals] = await Promise.all([
       prisma.firstDepositBonus.findUnique({
         where: { userId },
         select: {
@@ -27,25 +27,31 @@ export class FirstDepositBonusService {
         where: { status: 'CONFIRMED', wallet: { userId } },
         select: { id: true, currency: true, amount: true, confirmedAt: true },
       }),
-      prisma.depositSession.findMany({
-        where: { userId, orderId: null },
-        orderBy: { createdAt: 'desc' },
-        take: 20,
-        select: {
-          id: true,
-          status: true,
-          currency: true,
-          network: true,
-          amount: true,
-          usdAmount: true,
-          completedAt: true,
-        },
-      }),
       prisma.depositSession.aggregate({
         where: { userId, orderId: null, status: 'COMPLETED' },
         _sum: { usdAmount: true },
       }),
     ]);
+    const qualifyingDeposit = await prisma.depositSession.findFirst({
+      where: claimedBonus
+        ? { id: claimedBonus.depositSessionId, userId, orderId: null, status: 'COMPLETED' }
+        : {
+          userId,
+          orderId: null,
+          status: 'COMPLETED',
+          usdAmount: { gte: FIRST_DEPOSIT_BONUS_MINIMUM_USD },
+        },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        status: true,
+        currency: true,
+        network: true,
+        amount: true,
+        usdAmount: true,
+        completedAt: true,
+      },
+    });
     const totalDepositedUsd = new Prisma.Decimal(depositTotals._sum.usdAmount?.toString() ?? '0');
     const claimed = Boolean(claimedBonus);
     return {
@@ -68,15 +74,15 @@ export class FirstDepositBonusService {
         bonusAmount: Number(claimedBonus.bonusAmount.toString()),
         createdAt: claimedBonus.createdAt.toISOString(),
       } : null,
-      recentDeposits: deposits.map((deposit) => ({
-        id: deposit.id,
-        status: deposit.status,
-        currency: deposit.currency,
-        network: deposit.network,
-        amount: Number(deposit.amount.toString()),
-        usdAmount: Number(deposit.usdAmount.toString()),
-        completedAt: deposit.completedAt?.toISOString() ?? null,
-      })),
+      qualifyingDeposit: qualifyingDeposit ? {
+        id: qualifyingDeposit.id,
+        status: qualifyingDeposit.status,
+        currency: qualifyingDeposit.currency,
+        network: qualifyingDeposit.network,
+        amount: Number(qualifyingDeposit.amount.toString()),
+        usdAmount: Number(qualifyingDeposit.usdAmount.toString()),
+        completedAt: qualifyingDeposit.completedAt?.toISOString() ?? null,
+      } : null,
       hasConfirmedLegacyDeposit: Boolean(priorLegacyDeposit),
       confirmedLegacyDeposit: priorLegacyDeposit ? {
         currency: priorLegacyDeposit.currency,

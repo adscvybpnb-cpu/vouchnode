@@ -19,7 +19,7 @@ export type FirstDepositBonusEligibility = {
     bonusAmount: number;
     createdAt: string;
   } | null;
-  recentDeposits: Array<{
+  qualifyingDeposit: {
     id: string;
     status: string;
     currency: string;
@@ -27,7 +27,7 @@ export type FirstDepositBonusEligibility = {
     amount: number;
     usdAmount: number;
     completedAt: string | null;
-  }>;
+  } | null;
   hasConfirmedLegacyDeposit: boolean;
   confirmedLegacyDeposit: {
     currency: string;
@@ -55,7 +55,9 @@ function getCachedEligibility(userId: string): FirstDepositBonusEligibility | un
       typeof (parsed as FirstDepositBonusEligibility).claimed !== 'boolean' ||
       typeof (parsed as FirstDepositBonusEligibility).totalDepositedUsd !== 'number' ||
       typeof (parsed as FirstDepositBonusEligibility).status !== 'string' ||
-      !Array.isArray((parsed as FirstDepositBonusEligibility).recentDeposits)
+      ((parsed as FirstDepositBonusEligibility).qualifyingDeposit !== null &&
+        (parsed as FirstDepositBonusEligibility).qualifyingDeposit !== undefined &&
+        typeof (parsed as FirstDepositBonusEligibility).qualifyingDeposit !== 'object')
     ) return undefined;
     return parsed as FirstDepositBonusEligibility;
   } catch (error) {
@@ -112,7 +114,7 @@ export function useFirstDepositBonusEligibility() {
         minimumUsd: current?.minimumUsd ?? 50,
         bonusAmountUsdt: current?.bonusAmountUsdt ?? 10,
         claim: current?.claim ?? null,
-        recentDeposits: current?.recentDeposits ?? [],
+        qualifyingDeposit: current?.qualifyingDeposit ?? null,
         hasConfirmedLegacyDeposit: current?.hasConfirmedLegacyDeposit ?? false,
         confirmedLegacyDeposit: current?.confirmedLegacyDeposit ?? null,
       }));

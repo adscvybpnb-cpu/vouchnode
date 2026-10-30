@@ -11,7 +11,7 @@ vi.mock('../lib/prisma', () => ({
   prisma: {
     firstDepositBonus: { findUnique: vi.fn() },
     deposit: { findFirst: vi.fn() },
-    depositSession: { aggregate: vi.fn(), findMany: vi.fn() },
+    depositSession: { aggregate: vi.fn(), findMany: vi.fn(), findFirst: vi.fn() },
   },
 }));
 
@@ -26,7 +26,7 @@ describe('first-deposit bonus eligibility threshold', () => {
     vi.mocked(prisma.depositSession.aggregate).mockResolvedValue({
       _sum: { usdAmount: new Prisma.Decimal('25') },
     } as any);
-    vi.mocked(prisma.depositSession.findMany).mockResolvedValue([] as any);
+    vi.mocked(prisma.depositSession.findFirst).mockResolvedValue(null);
 
     await expect(FirstDepositBonusService.isEligible('user-1')).resolves.toBe(true);
     expect(prisma.firstDepositBonus.findUnique).toHaveBeenCalledWith({
@@ -48,7 +48,7 @@ describe('first-deposit bonus eligibility threshold', () => {
     vi.mocked(prisma.depositSession.aggregate).mockResolvedValue({
       _sum: { usdAmount: new Prisma.Decimal('50') },
     } as any);
-    vi.mocked(prisma.depositSession.findMany).mockResolvedValue([] as any);
+    vi.mocked(prisma.depositSession.findFirst).mockResolvedValue(null);
 
     await expect(FirstDepositBonusService.isEligible('user-1')).resolves.toBe(true);
   });
@@ -64,9 +64,44 @@ describe('first-deposit bonus eligibility threshold', () => {
     } as any);
     vi.mocked(prisma.deposit.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.depositSession.aggregate).mockResolvedValue({ _sum: { usdAmount: null } } as any);
-    vi.mocked(prisma.depositSession.findMany).mockResolvedValue([] as any);
+    vi.mocked(prisma.depositSession.findFirst).mockResolvedValue(null);
 
     await expect(FirstDepositBonusService.isEligible('user-1')).resolves.toBe(false);
+  });
+
+  it('returns at most one latest completed deposit worth at least $50 for the dashboard', async () => {
+    vi.mocked(prisma.firstDepositBonus.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.deposit.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.depositSession.aggregate).mockResolvedValue({
+      _sum: { usdAmount: new Prisma.Decimal(50) },
+    } as any);
+    vi.mocked(prisma.depositSession.findFirst).mockResolvedValue({
+      id: 'qualifying-session',
+      status: 'COMPLETED',
+      currency: 'USDT',
+      network: 'TRC20',
+      amount: new Prisma.Decimal(50),
+      usdAmount: new Prisma.Decimal(50),
+      completedAt: new Date('2026-10-30T09:00:00Z'),
+    } as any);
+
+    const eligibility = await FirstDepositBonusService.getEligibility('user-1');
+
+    expect(eligibility.qualifyingDeposit).toMatchObject({
+      id: 'qualifying-session',
+      status: 'COMPLETED',
+      usdAmount: 50,
+    });
+    expect(prisma.depositSession.findFirst).toHaveBeenCalledWith({
+      where: {
+        userId: 'user-1',
+        orderId: null,
+        status: 'COMPLETED',
+        usdAmount: { gte: new Prisma.Decimal(50) },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: expect.any(Object),
+    });
   });
 
   it('requires at least $50 USD equivalent', () => {

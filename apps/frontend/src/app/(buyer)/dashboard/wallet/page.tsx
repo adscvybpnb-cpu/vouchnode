@@ -309,12 +309,12 @@ export default function WalletPage() {
       </div>
       {(message || error) && <div className={`rounded-xl border px-4 py-3 text-sm ${error ? 'border-red-400/30 bg-red-400/10 text-red-200' : 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200'}`}>{error || message}</div>}
 
-      <section className="rounded-2xl border border-white/10 bg-[#141620] p-4 text-sm text-slate-300" aria-live="polite">
+      <section className="h-32 overflow-hidden rounded-2xl border border-white/10 bg-[#141620] p-4 text-sm text-slate-300" aria-live="polite">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="font-semibold text-white">First-deposit bonus status</h2>
               {bonusEligibility ? (
-                <p className="mt-1">
+                <p className="mt-1 line-clamp-2">
                   {bonusEligibility.status === 'BONUS_CLAIMED'
                     ? `$${bonusEligibility.claim?.bonusAmount ?? bonusEligibility.bonusAmountUsdt} USDT bonus credited.`
                     : bonusEligibility.status === 'LEGACY_DEPOSIT_BLOCKER'
@@ -341,15 +341,13 @@ export default function WalletPage() {
               Check status
             </Button>
           </div>
-          {bonusEligibility && bonusEligibility.recentDeposits.length > 0 && (
-            <ul className="mt-3 space-y-1 border-t border-white/5 pt-3 text-xs text-slate-400">
-              {bonusEligibility.recentDeposits.map((deposit) => (
-                <li key={deposit.id}>
-                  {deposit.currency} ({deposit.network}) · {deposit.status}: {deposit.amount} deposited, valued at ${deposit.usdAmount.toFixed(2)} USD
-                  {deposit.completedAt ? ` · ${new Date(deposit.completedAt).toLocaleString()}` : ''}
-                </li>
-              ))}
-            </ul>
+          {bonusEligibility?.qualifyingDeposit && (
+            <p className="mt-2 truncate border-t border-white/5 pt-2 text-xs text-slate-400">
+              {bonusEligibility.claimed ? 'Bonus award deposit' : 'Latest qualifying deposit'}: {bonusEligibility.qualifyingDeposit.currency} ({bonusEligibility.qualifyingDeposit.network}), valued at ${bonusEligibility.qualifyingDeposit.usdAmount.toFixed(2)} USD
+              {bonusEligibility.qualifyingDeposit.completedAt
+                ? ` · ${new Date(bonusEligibility.qualifyingDeposit.completedAt).toLocaleString()}`
+                : ''}
+            </p>
           )}
       </section>
 

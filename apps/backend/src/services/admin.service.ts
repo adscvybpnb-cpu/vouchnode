@@ -11,6 +11,8 @@ import { UserRole } from '@vouchnode/shared';
 import { BRAND_NAME } from '@vouchnode/shared';
 import { NotificationService } from './notification.service';
 import { emitAccountStatusRevoked } from '../websocket/socket.server';
+import { FirstDepositBonusService } from './first-deposit-bonus.service';
+import { PriceService } from './price.service';
 
 export class AdminService {
   private static pagination(filters: any) {
@@ -482,6 +484,25 @@ export class AdminService {
       throw Object.assign(new Error('finalAmount must be a positive number'), { statusCode: 400 });
     }
 
+    const pendingDeposit = await prisma.depositSession.findUnique({
+      where: { id },
+      select: { userId: true, currency: true, orderId: true },
+    });
+    let depositUsdValue: Prisma.Decimal | null = null;
+    if (pendingDeposit && !pendingDeposit.orderId) {
+      try {
+        depositUsdValue = await PriceService.convertCryptoToUsd(amount, pendingDeposit.currency);
+      } catch (error) {
+        console.error(JSON.stringify({
+          event: 'first_deposit_bonus_valuation_failed',
+          depositSessionId: id,
+          userId: pendingDeposit.userId,
+          currency: pendingDeposit.currency,
+          error: error instanceof Error ? error.message : String(error),
+        }));
+      }
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const deposit = await tx.depositSession.findUnique({
         where: { id },
@@ -503,7 +524,12 @@ export class AdminService {
 
       const updatedDeposit = await tx.depositSession.update({
         where: { id },
-        data: { status: 'COMPLETED', amount, completedAt: new Date() },
+        data: {
+          status: 'COMPLETED',
+          amount,
+          ...(depositUsdValue ? { usdAmount: depositUsdValue } : {}),
+          completedAt: new Date(),
+        },
       });
       await tx.cryptoDeposit.updateMany({
         where: { address: deposit.assignedAddress, network: deposit.network, status: 'PENDING' },
@@ -545,18 +571,31 @@ export class AdminService {
           },
         });
       }
+      const firstDepositBonusAwarded = depositUsdValue
+        ? await FirstDepositBonusService.grantForCompletedWalletDeposit(tx, {
+          userId: deposit.userId,
+          depositSessionId: deposit.id,
+          depositCurrency: deposit.currency,
+          depositAmount: new Prisma.Decimal(amount),
+          depositUsdValue,
+          completedAt: updatedDeposit.completedAt ?? new Date(),
+        })
+        : false;
       const notification = await NotificationService.createInTransaction(tx, {
         userId: deposit.userId,
         type: NotificationType.DEPOSIT_CONFIRMED,
         title: 'Deposit Approved Successfully',
-        message: `Your deposit of ${amount} ${deposit.currency} has been manually approved and credited to your wallet balance.`,
-        data: { depositSessionId: deposit.id, amount, currency: deposit.currency },
+        message: firstDepositBonusAwarded
+          ? `Your deposit of ${amount} ${deposit.currency} was approved. A $10 USDT first-deposit bonus has also been credited.`
+          : `Your deposit of ${amount} ${deposit.currency} has been manually approved and credited to your wallet balance.`,
+        data: { depositSessionId: deposit.id, amount, currency: deposit.currency, firstDepositBonusAwarded },
         link: '/dashboard/wallet',
       });
 
       return {
         updatedDeposit,
         notification,
+        firstDepositBonusAwarded,
         audit: {
           actorId: adminId,
           actorType: 'ADMIN',
@@ -575,6 +614,12 @@ export class AdminService {
     });
 
     NotificationService.emit(result.notification);
+    console.info(JSON.stringify({
+      event: 'first_deposit_bonus_manual_approval',
+      depositSessionId: id,
+      firstDepositBonusAwarded: result.firstDepositBonusAwarded,
+      depositUsdValue: depositUsdValue?.toString() ?? null,
+    }));
 
     try {
       await prisma.auditLog.create({ data: result.audit });
