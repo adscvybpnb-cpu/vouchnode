@@ -13,6 +13,7 @@ import { UserService } from '../services/user.service';
 import { createStorageProvider } from '../integrations/storage/storage.provider';
 import { randomUUID } from 'node:crypto';
 import { emitUserProfileUpdated } from '../websocket/socket.server';
+import { ReferralService } from '../services/referral.service';
 
 const depositSessionSchema = z.object({
   currency: z.string().trim().min(2).max(10).transform((value) => value.toUpperCase()),
@@ -54,6 +55,21 @@ export default async function walletRoutes(app: FastifyInstance) {
       req.log.error({ error, userId: req.user.id }, 'Unable to load current user profile');
       return res.status(statusCode).send({
         message: error instanceof Error ? error.message : 'Unable to load current user profile.',
+      });
+    }
+  });
+
+  app.get('/me/referrals', async (req: any, res) => {
+    try {
+      return res.send({ data: await ReferralService.getOverview(req.user.id) });
+    } catch (error) {
+      const statusCode = error && typeof error === 'object' && 'statusCode' in error &&
+        typeof error.statusCode === 'number'
+        ? error.statusCode
+        : 500;
+      req.log.error({ error, userId: req.user.id }, 'Unable to load referral overview');
+      return res.status(statusCode).send({
+        message: error instanceof Error ? error.message : 'Unable to load referral details.',
       });
     }
   });
