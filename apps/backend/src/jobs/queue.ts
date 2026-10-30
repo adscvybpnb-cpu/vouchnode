@@ -1,19 +1,40 @@
-import { Queue } from 'bullmq';
+import { Queue, type JobsOptions } from 'bullmq';
 import { redis } from '../lib/redis';
 
-export const disputeTimerQueue = new Queue('DISPUTE_TIMER_QUEUE', { connection: redis });
-export const buyerConfirmationQueue = new Queue('BUYER_CONFIRMATION_QUEUE', { connection: redis });
-export const orderExpiryQueue = new Queue('ORDER_EXPIRY_QUEUE', { connection: redis });
-export const notificationQueue = new Queue('NOTIFICATION_QUEUE', { connection: redis });
-export const fraudCheckQueue = new Queue('FRAUD_CHECK_QUEUE', { connection: redis });
-export const sellerStatsQueue = new Queue('SELLER_STATS_QUEUE', { connection: redis });
-export const withdrawalQueue = new Queue('WITHDRAWAL_QUEUE', { connection: redis });
-export const escrowReleaseQueue = new Queue('ESCROW_RELEASE_QUEUE', { connection: redis });
-export const swapQueue = new Queue('SWAP_QUEUE', { connection: redis });
-export const kycVerificationQueue = new Queue('KYC_VERIFICATION_QUEUE', { connection: redis });
-export const expirationQueue = new Queue('EXPIRATION_QUEUE', { connection: redis });
-export const confirmationQueue = new Queue('CONFIRMATION_QUEUE', { connection: redis });
-export const blockchainSettlementQueue = new Queue('BLOCKCHAIN_SETTLEMENT_QUEUE', { connection: redis });
+export const JOB_RETENTION = {
+  completed: { age: 30 * 60, count: 5 },
+  failed: { age: 60 * 60, count: 10 },
+} as const;
+
+const defaultJobOptions: JobsOptions = {
+  removeOnComplete: { ...JOB_RETENTION.completed },
+  removeOnFail: { ...JOB_RETENTION.failed },
+};
+
+function createQueue(name: string) {
+  return new Queue(name, {
+    connection: redis,
+    defaultJobOptions: {
+      ...defaultJobOptions,
+      removeOnComplete: { ...JOB_RETENTION.completed },
+      removeOnFail: { ...JOB_RETENTION.failed },
+    },
+  });
+}
+
+export const disputeTimerQueue = createQueue('DISPUTE_TIMER_QUEUE');
+export const buyerConfirmationQueue = createQueue('BUYER_CONFIRMATION_QUEUE');
+export const orderExpiryQueue = createQueue('ORDER_EXPIRY_QUEUE');
+export const notificationQueue = createQueue('NOTIFICATION_QUEUE');
+export const fraudCheckQueue = createQueue('FRAUD_CHECK_QUEUE');
+export const sellerStatsQueue = createQueue('SELLER_STATS_QUEUE');
+export const withdrawalQueue = createQueue('WITHDRAWAL_QUEUE');
+export const escrowReleaseQueue = createQueue('ESCROW_RELEASE_QUEUE');
+export const swapQueue = createQueue('SWAP_QUEUE');
+export const kycVerificationQueue = createQueue('KYC_VERIFICATION_QUEUE');
+export const expirationQueue = createQueue('EXPIRATION_QUEUE');
+export const confirmationQueue = createQueue('CONFIRMATION_QUEUE');
+export const blockchainSettlementQueue = createQueue('BLOCKCHAIN_SETTLEMENT_QUEUE');
 
 export async function scheduleDisputeTimer(disputeId: string, delayMs: number) {
   return disputeTimerQueue.add('timeout', { disputeId }, { delay: delayMs, jobId: `dispute-${disputeId}` });
@@ -39,8 +60,6 @@ export async function scheduleKycVerification(requestId: string, delayMs = 0) {
   return kycVerificationQueue.add('verify', { requestId }, {
     delay: delayMs,
     jobId: `kyc-verify-${requestId}`,
-    removeOnComplete: true,
-    removeOnFail: false,
   });
 }
 
@@ -57,8 +76,6 @@ export async function scheduleConfirmation(data: {
 }) {
   return confirmationQueue.add('confirm-payment', data, {
     jobId: `confirm-payment-${data.network}-${data.txHash}`,
-    removeOnComplete: true,
-    removeOnFail: false,
     attempts: 8,
     backoff: { type: 'exponential', delay: 5000 },
   });
@@ -67,8 +84,6 @@ export async function scheduleConfirmation(data: {
 export async function scheduleBlockchainSettlement(depositId: string) {
   return blockchainSettlementQueue.add('settle-detected-deposit', { depositId }, {
     jobId: `settle-detected-deposit-${depositId}`,
-    removeOnComplete: true,
-    removeOnFail: false,
     attempts: 8,
     backoff: { type: 'exponential', delay: 5000 },
   });
@@ -79,8 +94,6 @@ export async function scheduleNotificationDelivery(notificationId: string, sendE
     jobId: `notification-delivery-${notificationId}`,
     attempts: 5,
     backoff: { type: 'exponential', delay: 5000 },
-    removeOnComplete: true,
-    removeOnFail: false,
   });
 }
 
@@ -93,13 +106,9 @@ export function initializeQueues() {
   void expirationQueue.add('expire-due-records', {}, {
     jobId: 'expire-due-records-repeat',
     repeat: { every: 60_000 },
-    removeOnComplete: true,
-    removeOnFail: false,
   });
   void confirmationQueue.add('reconcile-confirmations', {}, {
     jobId: 'reconcile-confirmations-repeat',
     repeat: { every: 35_000 },
-    removeOnComplete: true,
-    removeOnFail: false,
   });
 }

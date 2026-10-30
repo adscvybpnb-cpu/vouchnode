@@ -71,8 +71,6 @@ export const confirmationWorker = new Worker('CONFIRMATION_QUEUE', async (job) =
         // A retry cannot reuse the currently active job ID; BullMQ deduplicates it.
         jobId: `confirm-payment-${data.network}-${data.txHash}-retry-${Date.now()}`,
         delay: 60_000,
-        removeOnComplete: true,
-        removeOnFail: false,
         attempts: 8,
         backoff: { type: 'exponential', delay: 5000 },
       });
@@ -105,8 +103,6 @@ export const confirmationWorker = new Worker('CONFIRMATION_QUEUE', async (job) =
       requiredConfirmations: candidate.requiredConfirmations,
     }, {
       jobId: `confirm-payment-${candidate.confirmationNetwork}-${candidate.cryptoTxHash}`,
-      removeOnComplete: true,
-      removeOnFail: false,
       attempts: 8,
       backoff: { type: 'exponential', delay: 5000 },
     });

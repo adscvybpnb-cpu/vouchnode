@@ -202,6 +202,12 @@ file outside the repository. Never commit production environment files.
 - Set `REDIS_URL` to authenticated Redis. Prefer `rediss://` for managed Redis;
   if Redis runs on the AlexHost VPS, bind it to loopback, require authentication,
   and keep its port closed to the public network. URL-encode credentials.
+- BullMQ jobs retain at most 5 completed jobs per queue for 30 minutes and 10
+  failed jobs per queue for 1 hour. This bounds queue history, but Redis
+  eviction policy is controlled by the Redis provider; job retention cannot
+  change `volatile-lru` to `noeviction` or prevent the BullMQ policy warning.
+  Monitor provider memory and configure the Redis service or plan for BullMQ's
+  recommended policy and sufficient headroom.
 - Set distinct, random `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`,
   `ADMIN_TOKEN_SECRET`, and `ENCRYPTION_KEY` values. Set a unique admin username
   and a password of at least 16 characters. Configure `ADMIN_EMAIL` as well if
