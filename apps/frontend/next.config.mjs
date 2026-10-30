@@ -8,7 +8,7 @@ const contentSecurityPolicy = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isProduction ? '' : " 'unsafe-eval'"} https://challenges.cloudflare.com https://*.cloudflareinsights.com https://cloudflare.com`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://*",
+  "img-src 'self' data: blob: https:",
   `connect-src 'self' https://vouchnodes.com wss://vouchnodes.com https://www.vouchnodes.com wss://www.vouchnodes.com https://api.vouchnodes.com wss://api.vouchnodes.com https://challenges.cloudflare.com https://*.cloudflareinsights.com https://cloudflare.com${isProduction ? '' : ' http://localhost:3000 ws://localhost:3000 http://127.0.0.1:3000 ws://127.0.0.1:3000'}`,
   "font-src 'self' data:",
   "object-src 'none'",

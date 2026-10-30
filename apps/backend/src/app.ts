@@ -11,6 +11,7 @@ import { config } from './config';
 import { logger } from './lib/logger';
 import { redis } from './lib/redis';
 import { getAllowedFrontendOrigins } from './lib/frontend-origins';
+import { normalizeAvatarUrlsInResponse } from './services/avatar-response.service';
 import { ZodError } from 'zod';
 import jwt from 'jsonwebtoken';
 import { FastifyRequest } from 'fastify';
@@ -66,6 +67,9 @@ export const buildApp = async () => {
     genReqId: () => uuidv4(),
     bodyLimit: 50 * 1024 * 1024
   });
+  app.addHook('preSerialization', async (_request, _reply, payload) =>
+    normalizeAvatarUrlsInResponse(payload),
+  );
   app.server.keepAliveTimeout = 72_000;
   app.server.headersTimeout = 75_000;
   await app.register(compress, {
