@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthStore } from '@/store/auth.store';
 import { getSellerOnboardingPath, isApprovedSeller } from '@/lib/seller-access';
+import { sellerService } from '@/services/seller.service';
 
 type ListingTab = 'ALL' | 'DRAFT' | 'ON SALE' | 'SOLD' | 'EXPIRED';
 type SoldTab = 'SHOW ALL' | 'PENDING' | 'IN-PROGRESS' | 'RECEIVED' | 'UNDER REVIEW/DISPUTE' | 'CANCELLED' | 'COMPLETE';
@@ -99,12 +100,46 @@ export default function SellerProductsPage() {
   };
 
   useEffect(() => {
-    if (currentUser && !isApprovedSeller(currentUser)) {
-      router.replace(getSellerOnboardingPath('/seller/products'));
-      return;
-    }
-    void loadProducts();
-  }, [currentUser, limit, sort, userId, activeTab]);
+    let isMounted = true;
+
+    const loadListings = async () => {
+      if (!currentUser) {
+        await loadProducts();
+        return;
+      }
+
+      let sellerStatus = currentUser.sellerStatus;
+      if (!isApprovedSeller(currentUser)) {
+        try {
+          const result = await sellerService.getMySellerStatus();
+          sellerStatus = result.status;
+        } catch (error) {
+          console.error('Unable to verify seller access for listings:', error);
+          if (isMounted) {
+            toast({
+              title: 'Unable to verify seller access',
+              description: error instanceof Error ? error.message : 'Please try again.',
+              variant: 'destructive',
+            });
+            setLoading(false);
+          }
+          return;
+        }
+      }
+
+      if (!isMounted) return;
+      if (sellerStatus !== 'approved') {
+        router.replace(getSellerOnboardingPath('/seller/products'));
+        return;
+      }
+      await loadProducts();
+    };
+
+    void loadListings();
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser, limit, sort, userId, activeTab, router, toast]);
 
   useEffect(() => {
     void productService.getCategories().then((items) => setCategoryOptions(items as Array<{ id: string; name: string; slug: string }>));

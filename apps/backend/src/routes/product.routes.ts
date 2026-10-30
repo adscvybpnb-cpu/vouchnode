@@ -5,6 +5,7 @@ import { ProductRepository } from '../repositories/product.repository';
 import { UserRole } from '@vouchnode/shared';
 import { createStorageProvider } from '../integrations/storage/storage.provider';
 import { config } from '../config';
+import { redis } from '../lib/redis';
 
 export default async function productRoutes(app: FastifyInstance) {
   app.get('/products', { preHandler: [optionalAuth] }, ProductController.getProducts);
@@ -14,19 +15,65 @@ export default async function productRoutes(app: FastifyInstance) {
     const parsed = Number(value);
     return Number.isInteger(parsed) ? Math.min(Math.max(parsed, 1), 48) : 10;
   };
-  const safeCollection = async (req: any, res: any, collection: () => Promise<unknown[]>, label: string) => {
+  const safeCollection = async (
+    req: any,
+    res: any,
+    collection: () => Promise<unknown[]>,
+    label: string,
+    cacheKey: string,
+  ) => {
+    if (redis.status === 'ready') {
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const cached = await new Promise<string | null>((resolve, reject) => {
+          timeout = setTimeout(() => reject(new Error('Product cache read timed out')), 100);
+          redis.get(cacheKey).then(resolve, reject);
+        });
+        if (cached !== null) {
+          const items: unknown = JSON.parse(cached);
+          if (Array.isArray(items)) return res.status(200).send(items);
+          req.log.warn({ cacheKey }, 'Ignoring invalid product collection cache entry');
+        }
+      } catch (error) {
+        req.log.warn({ error, cacheKey }, 'Unable to read product collection cache');
+      } finally {
+        if (timeout) clearTimeout(timeout);
+      }
+    }
+
     try {
-      return res.status(200).send(await collection());
+      const items = await collection();
+      if (redis.status === 'ready') {
+        void redis.set(cacheKey, JSON.stringify(items), 'EX', 15).catch((error) => {
+          req.log.warn({ error, cacheKey }, 'Unable to update product collection cache');
+        });
+      }
+      return res.status(200).send(items);
     } catch (error) {
       req.log.error({ error }, `${label} products lookup failed`);
       return res.status(200).send([]);
     }
   };
-  app.get('/products/featured', async (req: any, res) => safeCollection(req, res, () => ProductRepository.getFeatured(safeLimit(req.query?.limit)), 'Featured'));
-  app.get('/products/trending', async (req: any, res) => safeCollection(req, res, () => ProductRepository.getTrending(safeLimit(req.query?.limit)), 'Trending'));
-  app.get('/products/best-sellers', async (req: any, res) => safeCollection(req, res, () => ProductRepository.getBestSellers(safeLimit(req.query?.limit)), 'Best sellers'));
-  app.get('/products/new-arrivals', async (req: any, res) => safeCollection(req, res, () => ProductRepository.getNewArrivals(safeLimit(req.query?.limit)), 'New arrivals'));
-  app.get('/products/instant', async (req: any, res) => safeCollection(req, res, () => ProductRepository.getInstantDelivery(safeLimit(req.query?.limit)), 'Instant delivery'));
+  app.get('/products/featured', async (req: any, res) => {
+    const limit = safeLimit(req.query?.limit);
+    return safeCollection(req, res, () => ProductRepository.getFeatured(limit), 'Featured', `products:featured:${limit}`);
+  });
+  app.get('/products/trending', async (req: any, res) => {
+    const limit = safeLimit(req.query?.limit);
+    return safeCollection(req, res, () => ProductRepository.getTrending(limit), 'Trending', `products:trending:${limit}`);
+  });
+  app.get('/products/best-sellers', async (req: any, res) => {
+    const limit = safeLimit(req.query?.limit);
+    return safeCollection(req, res, () => ProductRepository.getBestSellers(limit), 'Best sellers', `products:best-sellers:${limit}`);
+  });
+  app.get('/products/new-arrivals', async (req: any, res) => {
+    const limit = safeLimit(req.query?.limit);
+    return safeCollection(req, res, () => ProductRepository.getNewArrivals(limit), 'New arrivals', `products:new-arrivals:${limit}`);
+  });
+  app.get('/products/instant', async (req: any, res) => {
+    const limit = safeLimit(req.query?.limit);
+    return safeCollection(req, res, () => ProductRepository.getInstantDelivery(limit), 'Instant delivery', `products:instant:${limit}`);
+  });
   app.get('/products/:slug/offers', { preHandler: [optionalAuth] }, ProductController.getOffers);
 
   app.post('/products', { preHandler: [authenticate, requireApprovedSeller] }, ProductController.createProduct);

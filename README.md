@@ -190,11 +190,21 @@ file outside the repository. Never commit production environment files.
   data fetches.
 - The frontend uses a system font stack; production builds do not fetch Google
   Fonts or require external font access.
-- The service worker keeps a bounded cache of the offline shell and static
-  public assets. Immutable Next.js assets are cache-first; previously cached
+- The service worker warms `/`, `/products`, `/sellers`, `/about`, and `/help`
+  on install, but only caches page responses explicitly marked `public` and
+  without `Vary: Cookie`. Those public pages use
+  stale-while-revalidate; authenticated/dynamic pages and API responses remain
+  network-only. Immutable Next.js assets are cache-first; previously cached
   public images/fonts are served immediately while revalidating in the
-  background. It does not archive authenticated routes or API responses, so
-  private account and wallet data is not persisted as offline page content.
+  background. This avoids persisting private account or wallet responses.
+- The anonymous featured, trending, best-seller, new-arrival, and instant-
+  delivery product collections use Redis keys with a 15-second TTL. Redis
+  reads are bounded to 100 ms and fall back to PostgreSQL on cache errors;
+  personalized product, account, and transactional routes are not cached.
+- The example Nginx TLS virtual hosts enable HTTP/2. Confirm the installed
+  Nginx version accepts the `listen ... http2` directive and validate the
+  configuration before reloading it. HTTP/3 requires separate support from
+  the deployed Nginx build and network edge; it is not enabled by this example.
 - React Query keeps fetched page data in memory across route changes, serves
   cached data while stale queries revalidate, and uses offline-first fetch
   behavior with one retry. The cache is cleared when authentication is cleared.
