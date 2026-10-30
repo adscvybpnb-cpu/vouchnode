@@ -1,3 +1,6 @@
+import { prisma } from '../lib/prisma';
+import { config } from '../config';
+
 const COIN_GECKO_IDS: Record<string, string> = {
   BTC: 'bitcoin',
   BCH: 'bitcoin-cash',
@@ -25,9 +28,28 @@ const COIN_CAP_IDS: Record<string, string> = {
   ETH: 'ethereum',
   LTC: 'litecoin',
 };
+const COIN_MARKET_CAP_IDS: Record<string, string> = {
+  BTC: '1',
+  BCH: '1831',
+  TRX: '1958',
+  BNB: '1839',
+  SOL: '5426',
+  ETH: '1027',
+  LTC: '2',
+};
+const COIN_LORE_IDS: Record<string, string> = {
+  BTC: '90',
+  BCH: '2321',
+  TRX: '2713',
+  BNB: '2710',
+  SOL: '48543',
+  ETH: '80',
+  LTC: '1',
+};
 const STABLECOIN_RATES = { USDT: 1, USDC: 1 };
 const CRYPTO_TTL_MS = 60_000;
-const REQUEST_TIMEOUT_MS = 8_000;
+const REQUEST_TIMEOUT_MS = 3_000;
+const DATABASE_PRICE_SNAPSHOT_KEY = 'crypto_prices_last_known';
 type Rates = Record<string, number>;
 type PriceSnapshot = { rates: Rates; updatedAt: number; source: string };
 
@@ -54,18 +76,27 @@ export class PriceSyncService {
           source,
         };
         this.crypto = snapshot;
+        void this.persistSnapshot(snapshot).catch((error: unknown) => {
+          console.warn('Unable to persist the last known crypto prices', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
         return snapshot;
       })
       .catch((cause: unknown) => {
-        if (this.crypto) {
+        return this.loadPersistedSnapshot().then((persistedSnapshot) => {
+          const cachedSnapshot = [this.crypto, persistedSnapshot]
+            .filter((snapshot): snapshot is PriceSnapshot => snapshot !== null)
+            .sort((left, right) => right.updatedAt - left.updatedAt)[0];
+          if (!cachedSnapshot) throw cause;
+          this.crypto = cachedSnapshot;
           console.warn('Crypto price providers unavailable; serving last known good prices', {
-            source: this.crypto.source,
-            ageMs: Date.now() - this.crypto.updatedAt,
+            source: cachedSnapshot.source,
+            ageMs: Date.now() - cachedSnapshot.updatedAt,
             error: cause instanceof Error ? cause.message : String(cause),
           });
-          return this.crypto;
-        }
-        throw cause;
+          return cachedSnapshot;
+        });
       })
       .finally(() => { this.cryptoRequest = null; });
     return this.cryptoRequest;
@@ -106,9 +137,16 @@ export class PriceSyncService {
     const providers: Array<{ name: string; fetch: () => Promise<Rates> }> = [
       { name: 'CoinGecko', fetch: () => this.fetchCoinGecko() },
       { name: 'Binance', fetch: () => this.fetchBinance() },
+      { name: 'CryptoCompare', fetch: () => this.fetchCryptoCompare() },
+      { name: 'CoinMarketCap', fetch: () => this.fetchCoinMarketCap() },
       { name: 'CoinCap', fetch: () => this.fetchCoinCap() },
+      { name: 'CoinLore', fetch: () => this.fetchCoinLore() },
     ];
     for (const provider of providers) {
+      if (provider.name === 'CoinMarketCap' && !config.crypto.prices.coinMarketCapApiKey) {
+        failures.push('CoinMarketCap: skipped; COINMARKETCAP_API_KEY is not configured');
+        continue;
+      }
       try {
         return { rates: await provider.fetch(), source: provider.name };
       } catch (cause) {
@@ -120,9 +158,9 @@ export class PriceSyncService {
     throw new Error(`All live crypto price providers failed. ${failures.join('; ')}`);
   }
 
-  private static async fetchJson<T>(url: string): Promise<T> {
+  private static async fetchJson<T>(url: string, headers: Record<string, string> = {}): Promise<T> {
     const response = await fetch(url, {
-      headers: { accept: 'application/json' },
+      headers: { accept: 'application/json', ...headers },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     if (!response.ok) throw new Error(`provider returned HTTP ${response.status}`);
@@ -159,6 +197,94 @@ export class PriceSyncService {
     return this.validateRates(Object.fromEntries(
       Object.entries(COIN_CAP_IDS).map(([symbol, id]) => [symbol, byId.get(id)]),
     ));
+  }
+
+  private static async fetchCryptoCompare(): Promise<Rates> {
+    const symbols = Object.keys(COIN_GECKO_IDS).join(',');
+    const headers = config.crypto.prices.cryptoCompareApiKey
+      ? { authorization: `Apikey ${config.crypto.prices.cryptoCompareApiKey}` }
+      : {};
+    const payload = await this.fetchJson<Record<string, { USD?: number }>>(
+      `https://min-api.cryptocompare.com/data/pricemulti?fsyms=${encodeURIComponent(symbols)}&tsyms=USD`,
+      headers,
+    );
+    return this.validateRates(Object.fromEntries(
+      Object.keys(COIN_GECKO_IDS).map((symbol) => [symbol, payload[symbol]?.USD]),
+    ));
+  }
+
+  private static async fetchCoinMarketCap(): Promise<Rates> {
+    const ids = Object.values(COIN_MARKET_CAP_IDS).join(',');
+    const payload = await this.fetchJson<{
+      data?: Record<string, { quote?: { USD?: { price?: number } } }>;
+    }>(
+      `https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?id=${encodeURIComponent(ids)}`,
+      { 'X-CMC_PRO_API_KEY': config.crypto.prices.coinMarketCapApiKey ?? '' },
+    );
+    return this.validateRates(Object.fromEntries(
+      Object.entries(COIN_MARKET_CAP_IDS).map(([symbol, id]) => [
+        symbol,
+        payload.data?.[id]?.quote?.USD?.price,
+      ]),
+    ));
+  }
+
+  private static async fetchCoinLore(): Promise<Rates> {
+    const ids = Object.values(COIN_LORE_IDS).join(',');
+    const payload = await this.fetchJson<Array<{ id?: string; price_usd?: string }>>(
+      `https://api.coinlore.net/api/ticker/?id=${encodeURIComponent(ids)}`,
+    );
+    const byId = new Map((payload || []).map((item) => [item.id, Number(item.price_usd)]));
+    return this.validateRates(Object.fromEntries(
+      Object.entries(COIN_LORE_IDS).map(([symbol, id]) => [symbol, byId.get(id)]),
+    ));
+  }
+
+  private static async persistSnapshot(snapshot: PriceSnapshot) {
+    await prisma.systemSetting.upsert({
+      where: { key: DATABASE_PRICE_SNAPSHOT_KEY },
+      create: {
+        key: DATABASE_PRICE_SNAPSHOT_KEY,
+        value: JSON.stringify(snapshot),
+        type: 'JSON',
+        group: 'system',
+        description: 'Last validated crypto USD price snapshot used for provider failover.',
+      },
+      update: {
+        value: JSON.stringify(snapshot),
+        type: 'JSON',
+      },
+    });
+  }
+
+  private static async loadPersistedSnapshot(): Promise<PriceSnapshot | null> {
+    try {
+      const setting = await prisma.systemSetting.findUnique({
+        where: { key: DATABASE_PRICE_SNAPSHOT_KEY },
+        select: { value: true },
+      });
+      if (!setting) return null;
+      const parsed: unknown = JSON.parse(setting.value);
+      if (!parsed || typeof parsed !== 'object') return null;
+      const snapshot = parsed as Partial<PriceSnapshot>;
+      if (
+        typeof snapshot.updatedAt !== 'number' ||
+        !Number.isFinite(snapshot.updatedAt) ||
+        typeof snapshot.source !== 'string' ||
+        !snapshot.rates ||
+        typeof snapshot.rates !== 'object'
+      ) return null;
+      return {
+        rates: { ...this.validateRates(snapshot.rates), ...STABLECOIN_RATES },
+        updatedAt: snapshot.updatedAt,
+        source: `database:${snapshot.source}`,
+      };
+    } catch (error) {
+      console.warn('Unable to load persisted crypto price snapshot', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
   }
 
   private static validateRates(rates: Record<string, unknown>): Rates {

@@ -57,6 +57,12 @@ pnpm dev
 | `JWT_ACCESS_SECRET` | Secret for access tokens | `min-32-chars-secret` |
 | `ENCRYPTION_KEY` | 32-byte hex key for data at rest | `your-32-byte-hex-encryption-key` |
 | `CRYPTO_PROVIDER` | Payments backend | `nowpayments`, `manual` |
+| `CRYPTOCOMPARE_API_KEY` | Optional CryptoCompare price-provider key; enables authenticated fallback requests | Secret value |
+| `COINMARKETCAP_API_KEY` | Optional CoinMarketCap price-provider key; enables this fallback tier | Secret value |
+
+Crypto USD prices use sequential CoinGecko, Binance, CryptoCompare,
+CoinMarketCap (when configured), CoinCap, and CoinLore providers. Validated
+snapshots are also persisted in PostgreSQL for last-known-price fallback.
 
 *Refer to `.env.example` for the complete list.*
 

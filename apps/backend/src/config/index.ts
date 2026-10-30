@@ -105,7 +105,11 @@ export const config = {
     nowpayments: {
       apiKey: env.NOWPAYMENTS_API_KEY,
       ipnSecret: env.NOWPAYMENTS_IPN_SECRET
-    }
+    },
+    prices: {
+      coinMarketCapApiKey: env.COINMARKETCAP_API_KEY,
+      cryptoCompareApiKey: env.CRYPTOCOMPARE_API_KEY,
+    },
   },
   blockchain: {
     evmRpcUrls: Object.values(evmRpcUrlsByNetwork).flat(),

@@ -111,6 +111,8 @@ const envSchema = z.object({
   SOLANA_MASTER_XPUB: z.string().default(''),
   NOWPAYMENTS_API_KEY: z.string().optional(),
   NOWPAYMENTS_IPN_SECRET: z.string().optional(),
+  COINMARKETCAP_API_KEY: z.string().optional(),
+  CRYPTOCOMPARE_API_KEY: z.string().optional(),
   ALCHEMY_WEBHOOK_SIGNING_KEY: z.string().optional(),
   PRIVATE_RPC_ARB: z.string().default(''),
   PRIVATE_RPC_ETH: z.string().default(''),
