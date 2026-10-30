@@ -170,4 +170,45 @@ describe('P2P market offer listing', () => {
       .toEqual(['online-offer', 'offline-offer']);
   });
 
+  it('sorts online merchants by completed trade volume before activity recency', async () => {
+    const now = new Date();
+    const makeOffer = (id: string, userId: string) => ({
+      id,
+      type: 'BUY',
+      giftCardType: 'Any Gift Card',
+      cryptoAsset: 'USDT',
+      minLimit: new Prisma.Decimal(10),
+      maxLimit: new Prisma.Decimal(1_000),
+      exchangeRate: new Prisma.Decimal('0.8'),
+      terms: null,
+      updatedAt: now,
+      user: {
+        id: userId,
+        lastLoginAt: userId === 'high-volume' ? new Date(now.getTime() - 60 * 60 * 1000) : now,
+        isOnline: true,
+        onlineUntil: null,
+        sellerProfile: { shopName: userId },
+        wallets: [{ currency: 'USDT', availableBalance: new Prisma.Decimal(10) }],
+        profile: { username: userId, displayName: userId, avatarUrl: null },
+      },
+    });
+    mocks.offerFindMany.mockResolvedValue([
+      makeOffer('low-volume-offer', 'low-volume'),
+      makeOffer('high-volume-offer', 'high-volume'),
+    ]);
+    mocks.getTradeMetricsForUsers.mockResolvedValue(new Map([
+      ['low-volume', { completionRate: 100, totalCompletedOrders: 5, completedBuyOrders: 0, completedSellOrders: 5, thirtyDayOrders: 5, avgReleaseMinutes: 5 }],
+      ['high-volume', { completionRate: 100, totalCompletedOrders: 100, completedBuyOrders: 0, completedSellOrders: 100, thirtyDayOrders: 100, avgReleaseMinutes: 5 }],
+    ]));
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/offers?type=BUY&asset=USDT',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data.map((offer: { id: string }) => offer.id))
+      .toEqual(['high-volume-offer', 'low-volume-offer']);
+  });
+
 });

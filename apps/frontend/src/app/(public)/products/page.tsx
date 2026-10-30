@@ -2,14 +2,16 @@
 
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { productService } from '@/services/product.service';
 import { ProductSearchResults } from '@/components/site/ProductSearchResults';
 import { marketplaceCategories } from '@/lib/marketplace-data';
-import type { ProductFilters } from '@/types/api.types';
+import type { PaginatedResponse, Product, ProductFilters } from '@/types/api.types';
 
 function ProductsContent() {
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const categoryQuery = searchParams.get('category') ?? 'gift-cards';
   const filters: ProductFilters = {
     search: searchParams.get('search') || '',
@@ -30,6 +32,48 @@ function ProductsContent() {
     queryFn: () => productService.getProducts(filters),
     placeholderData: (previousData) => previousData,
   });
+
+  useEffect(() => {
+    const handlePresenceUpdate = (event: Event) => {
+      const payload = (event as CustomEvent<{
+        userId?: string;
+        isOnline?: boolean;
+        onlineUntil?: string | null;
+      }>).detail;
+      if (!payload?.userId || typeof payload.isOnline !== 'boolean') return;
+
+      const isOnline = payload.isOnline &&
+        (!payload.onlineUntil || new Date(payload.onlineUntil).getTime() > Date.now());
+      queryClient.setQueriesData<PaginatedResponse<Product>>(
+        { queryKey: ['products'] },
+        (current) => current && ({
+          ...current,
+          data: current.data
+            .map((product) => {
+              const seller = product.seller;
+              if (!seller || seller.userId !== payload.userId) return product;
+              return {
+                ...product,
+                seller: {
+                  ...seller,
+                  isOnline,
+                  onlineUntil: payload.onlineUntil ?? null,
+                  user: {
+                    ...seller.user,
+                    isOnline,
+                    onlineUntil: payload.onlineUntil ?? null,
+                  },
+                },
+              };
+            })
+            .sort((a, b) => Number(b.seller?.isOnline) - Number(a.seller?.isOnline)
+              || (b.seller?.completedTradesCount ?? 0) - (a.seller?.completedTradesCount ?? 0)),
+        }),
+      );
+    };
+    window.addEventListener('presence:update', handlePresenceUpdate);
+    return () => window.removeEventListener('presence:update', handlePresenceUpdate);
+  }, [queryClient]);
 
   const activeCategory = categoryQuery === 'all'
     ? { name: 'All Products', slug: 'all' }

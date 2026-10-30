@@ -2,11 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   productFindMany: vi.fn(),
+  productCount: vi.fn(),
 }));
 
 vi.mock('../lib/prisma', () => ({
   prisma: {
-    product: { findMany: mocks.productFindMany },
+    product: { findMany: mocks.productFindMany, count: mocks.productCount },
   },
 }));
 
@@ -16,6 +17,7 @@ describe('public product listings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.productFindMany.mockResolvedValue([]);
+    mocks.productCount.mockResolvedValue(0);
   });
 
   it('shows listings for every active seller without gating on onboarding mode or verification level', async () => {
@@ -36,5 +38,19 @@ describe('public product listings', () => {
       status: 'ACTIVE',
       stock: { gt: 0 },
     });
+  });
+
+  it('orders public market listings online-first, then by completed merchant trades', async () => {
+    await ProductRepository.findMany(
+      { publicOnly: true },
+      { page: 1, limit: 20, sortBy: 'relevance', sortOrder: 'desc' },
+    );
+
+    const query = mocks.productFindMany.mock.calls[0][0];
+    expect(query.orderBy.slice(0, 2)).toEqual([
+      { seller: { user: { isOnline: 'desc' } } },
+      { seller: { user: { completedTradesCount: 'desc' } } },
+    ]);
+    expect(query.include.seller.select.user.select.completedTradesCount).toBe(true);
   });
 });

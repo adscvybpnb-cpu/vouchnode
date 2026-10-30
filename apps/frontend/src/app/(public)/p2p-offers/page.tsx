@@ -484,6 +484,7 @@ export default function P2POffersPage() {
           ? { ...offer, isOnline: payload.isOnline!, isActiveWithinFiveMinutes: payload.isOnline! || offer.isActiveWithinFiveMinutes }
           : offer)
         .sort((a, b) => Number(b.isOnline) - Number(a.isOnline)
+          || b.tradeVolume - a.tradeVolume
           || b.lastActiveAt.localeCompare(a.lastActiveAt)));
       queryClient.setQueryData<P2PProfile>(profileQueryKey, (current) => current && payload.userId === user?.id
         ? { ...current, isOnline: payload.isOnline! }

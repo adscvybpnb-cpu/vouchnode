@@ -79,6 +79,7 @@ export class ProductRepository {
       select: {
         isOnline: true,
         onlineUntil: true,
+        completedTradesCount: true,
         profile: { select: { displayName: true, username: true, avatarUrl: true } },
       },
     },
@@ -184,12 +185,20 @@ export class ProductRepository {
         break;
     }
 
+    const marketplaceOrderBy = filters.publicOnly
+      ? [
+          { seller: { user: { isOnline: 'desc' as const } } },
+          { seller: { user: { completedTradesCount: 'desc' as const } } },
+          ...(Array.isArray(orderBy) ? orderBy : [orderBy]),
+        ]
+      : orderBy;
+
     const [data, total] = await Promise.all([
       prisma.product.findMany({
         where,
         skip,
         take: pagination.limit,
-        orderBy,
+        orderBy: marketplaceOrderBy,
         include: {
           images: true,
           category: true,

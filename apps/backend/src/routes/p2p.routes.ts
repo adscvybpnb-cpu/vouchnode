@@ -441,6 +441,9 @@ export default async function p2pRoutes(app: FastifyInstance) {
           if (a.isOnline !== b.isOnline) {
             return a.isOnline ? -1 : 1;
           }
+          if (a.tradeVolume !== b.tradeVolume) {
+            return b.tradeVolume - a.tradeVolume;
+          }
           return b.lastActiveAt.getTime() - a.lastActiveAt.getTime();
         });
 

@@ -66,6 +66,8 @@ const normalizeProduct = (value: unknown): Product => {
     reviewCount: Number(product.seller.reviewCount ?? product.seller.ratingCount ?? 0),
     ratingCount: Number(product.seller.ratingCount ?? product.seller.reviewCount ?? 0),
     isVerified: Number(product.seller.verificationLevel ?? 0) > 0,
+    completedTradesCount: Number(product.seller.completedTradesCount ?? product.seller.user?.completedTradesCount ?? 0),
+    onlineUntil: product.seller.onlineUntil ?? product.seller.user?.onlineUntil ?? null,
     isOnline: Boolean(product.seller.isOnline ?? product.seller.user?.isOnline) &&
       (!product.seller.onlineUntil && !product.seller.user?.onlineUntil
         || new Date(product.seller.onlineUntil ?? product.seller.user?.onlineUntil).getTime() > Date.now()),
