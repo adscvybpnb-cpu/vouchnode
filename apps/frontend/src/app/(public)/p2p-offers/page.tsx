@@ -505,9 +505,9 @@ export default function P2POffersPage() {
               id: payload.userId,
               username: cleanP2PName(payload.profile.username),
               displayName: cleanP2PName(payload.profile.displayName || payload.profile.username),
-              avatarUrl: payload.profile.avatarUrl,
+              avatarUrl: payload.profile.avatarUrl || offer.merchant?.avatarUrl || offer.avatarUrl,
             },
-            avatarUrl: payload.profile.avatarUrl,
+            avatarUrl: payload.profile.avatarUrl || offer.avatarUrl,
           }
         : offer));
       queryClient.setQueryData<P2PProfile>(profileQueryKey, (current) => current?.id === payload.userId

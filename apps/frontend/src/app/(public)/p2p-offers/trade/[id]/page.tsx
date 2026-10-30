@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ShieldCheck } from 'lucide-react';
 import { cleanP2PName, p2pService, type P2POffer } from '@/services/p2p.service';
 import { OfferTerms } from '@/components/p2p/OfferTerms';
@@ -13,29 +14,28 @@ import { useSocket } from '@/hooks/useSocket';
 export default function P2PTradePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const { socket: presenceSocket } = useSocket('/presence');
-  const [offer, setOffer] = useState<P2POffer | null>(null);
+  const offerId = typeof params.id === 'string' ? params.id : '';
+  const offerQueryKey = useMemo(() => ['p2p', 'offer', offerId] as const, [offerId]);
+  const offerQuery = useQuery({
+    queryKey: offerQueryKey,
+    queryFn: () => p2pService.getOffer(offerId),
+    enabled: Boolean(offerId),
+    staleTime: 15_000,
+    gcTime: 10 * 60_000,
+    initialData: () => queryClient.getQueriesData<P2POffer[]>({ queryKey: ['p2p', 'offers'] })
+      .map(([, offers]) => offers?.find((cachedOffer) => cachedOffer.id === offerId))
+      .find((cachedOffer): cachedOffer is P2POffer => Boolean(cachedOffer)),
+  });
+  const offer = offerQuery.data ?? null;
   const [giftCardValue, setGiftCardValue] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [tradeError, setTradeError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
-
-  useEffect(() => {
-    const offerId = typeof params.id === 'string' ? params.id : '';
-    if (!offerId) {
-      setError('Offer not found.');
-      setLoading(false);
-      return;
-    }
-
-    void p2pService.getOffer(offerId)
-      .then(setOffer)
-      .catch((cause) => setError(cause instanceof Error ? cause.message : 'Unable to load offer.'))
-      .finally(() => setLoading(false));
-  }, [params.id]);
+  const loading = Boolean(offerId) && offerQuery.isLoading;
+  const error = offerQuery.error instanceof Error ? offerQuery.error.message : '';
 
   useEffect(() => {
     if (!presenceSocket) return;
@@ -44,7 +44,7 @@ export default function P2PTradePage() {
       profile: { username: string; displayName: string; avatarUrl: string | null };
     }) => {
       if (!payload?.userId || !payload.profile) return;
-      setOffer((current) => current?.userId === payload.userId
+      queryClient.setQueryData<P2POffer>(offerQueryKey, (current) => current?.userId === payload.userId
         ? {
             ...current,
             username: cleanP2PName(payload.profile.username),
@@ -53,9 +53,9 @@ export default function P2PTradePage() {
               id: payload.userId,
               username: cleanP2PName(payload.profile.username),
               displayName: cleanP2PName(payload.profile.displayName || payload.profile.username),
-              avatarUrl: payload.profile.avatarUrl,
+              avatarUrl: payload.profile.avatarUrl || current.merchant?.avatarUrl || current.avatarUrl,
             },
-            avatarUrl: payload.profile.avatarUrl,
+            avatarUrl: payload.profile.avatarUrl || current.avatarUrl,
           }
         : current);
     };
@@ -63,7 +63,7 @@ export default function P2PTradePage() {
     return () => {
       presenceSocket.off('user:profile-updated', handleProfileUpdate);
     };
-  }, [presenceSocket]);
+  }, [offerQueryKey, presenceSocket, queryClient]);
 
   const cryptoAmount = useMemo(() => {
     const value = Number(giftCardValue);
@@ -106,7 +106,7 @@ export default function P2PTradePage() {
       if (/balance has changed|insufficient available crypto balance/i.test(message)) {
         try {
           const refreshedOffer = await p2pService.getOffer(offer.id);
-          setOffer(refreshedOffer);
+          queryClient.setQueryData(offerQueryKey, refreshedOffer);
           const refreshedMax = refreshedOffer.effectiveMax ?? refreshedOffer.maxLimit;
           setTradeError(`The merchant's available balance changed. Current trade limits are ${refreshedOffer.minLimit.toFixed(2)} - ${refreshedMax.toFixed(2)} USD.`);
         } catch (refreshCause) {
