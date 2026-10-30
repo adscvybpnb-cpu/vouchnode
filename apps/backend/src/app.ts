@@ -10,6 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { config } from './config';
 import { logger } from './lib/logger';
 import { redis } from './lib/redis';
+import { getAllowedFrontendOrigins } from './lib/frontend-origins';
 import { ZodError } from 'zod';
 import jwt from 'jsonwebtoken';
 import { FastifyRequest } from 'fastify';
@@ -106,14 +107,10 @@ export const buildApp = async () => {
 
   // Security headers
   await app.register(helmet, { contentSecurityPolicy: false });
+  const allowedFrontendOrigins = getAllowedFrontendOrigins();
   await app.register(cors, {
     origin: (origin, callback) => {
-      const allowedOrigins = [
-        'https://vouchnodes.com',
-        'http://localhost:3000',
-        'http://127.0.0.1:3000'
-      ];
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || allowedFrontendOrigins.includes(origin)) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS - Protected by VouchNodes'), false);

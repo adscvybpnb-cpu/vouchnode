@@ -5,6 +5,7 @@ import { config } from '../config';
 import { prisma } from '../lib/prisma';
 import { redis } from '../lib/redis';
 import { logger } from '../lib/logger';
+import { getAllowedFrontendOrigins } from '../lib/frontend-origins';
 import { setupChatHandlers } from './chat.handler';
 import { setupNotificationHandlers } from './notification.handler';
 
@@ -38,9 +39,7 @@ export async function setupSocketServer(server: any) {
   if (socketServer) return socketServer;
   const io = new Server(server, {
     cors: {
-      origin: config.app.env === 'production'
-        ? [config.app.frontendUrl]
-        : [config.app.frontendUrl, 'http://localhost:3000', 'http://127.0.0.1:3000'],
+      origin: getAllowedFrontendOrigins(),
       methods: ['GET', 'POST'],
       allowedHeaders: ['Authorization', 'Content-Type'],
       credentials: true,

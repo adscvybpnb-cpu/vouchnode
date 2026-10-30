@@ -38,23 +38,40 @@ export const API_URL = /\/api\/v1$/i.test(normalizedApiUrl)
 export const API_ORIGIN = normalizedApiUrl.match(/^https?:\/\/[^/]+/i)?.[0] || '';
 export const ADMIN_API_URL = `${API_URL}/admin`;
 const configuredWsUrl = process.env.NEXT_PUBLIC_WS_URL;
-const isPublicWebSocketUrl = (value: string | undefined): value is string => {
-  if (!value) return false;
+const normalizeSocketOrigin = (value: string | undefined) => {
   try {
+    if (!value) throw new Error('Socket URL is not configured');
     const url = new URL(value);
-    return (url.protocol === 'https:' || url.protocol === 'wss:') &&
-      url.hostname !== 'localhost' &&
-      url.hostname !== '127.0.0.1' &&
-      url.hostname !== '::1' &&
-      !url.hostname.endsWith('.localhost');
+    const isLocalHost = url.hostname === 'localhost' ||
+      url.hostname === '127.0.0.1' ||
+      url.hostname === '::1' ||
+      url.hostname.endsWith('.localhost');
+
+    if (isProduction) {
+      if (!['https:', 'wss:'].includes(url.protocol) || isLocalHost) {
+        throw new Error('Production Socket.IO URL must use a public HTTPS/WSS origin');
+      }
+      if (url.origin === new URL(APP_URL).origin) {
+        throw new Error('Production Socket.IO URL must use the API origin');
+      }
+    } else if (!['http:', 'https:', 'ws:', 'wss:'].includes(url.protocol)) {
+      throw new Error('Unsupported Socket.IO protocol');
+    }
+
+    url.protocol = url.protocol === 'wss:' ? 'https:' : url.protocol === 'ws:' ? 'http:' : url.protocol;
+    return url.origin;
   } catch {
-    return false;
+    if (isProduction) return API_ORIGIN;
+    try {
+      const localUrl = new URL(value || 'http://127.0.0.1:4000');
+      localUrl.protocol = localUrl.protocol === 'wss:' ? 'https:' : localUrl.protocol === 'ws:' ? 'http:' : localUrl.protocol;
+      return localUrl.origin;
+    } catch {
+      return 'http://127.0.0.1:4000';
+    }
   }
 };
-export const WS_URL = (isProduction
-  ? (isPublicWebSocketUrl(configuredWsUrl) ? configuredWsUrl : API_ORIGIN)
-  : (configuredWsUrl || 'http://127.0.0.1:4000')
-).replace(/\/+$/, '');
+export const WS_URL = normalizeSocketOrigin(configuredWsUrl);
 export const DEFAULT_CURRENCY = process.env.NEXT_PUBLIC_DEFAULT_CURRENCY || 'USDT';
 export const SUPPORTED_CURRENCIES = ['USDT', 'BTC', 'ETH', 'LTC', 'BNB'];
 
