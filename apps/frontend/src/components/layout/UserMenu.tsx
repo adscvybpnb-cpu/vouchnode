@@ -38,6 +38,10 @@ type MenuLinkProps = {
   onClick?: () => void;
 };
 
+function getPresenceStatus(isOnline?: boolean, onlineUntil?: string | null) {
+  return Boolean(isOnline) && (!onlineUntil || new Date(onlineUntil).getTime() > Date.now());
+}
+
 function MenuLink({ href, label, icon: Icon, hints, onClick }: MenuLinkProps) {
   return (
     <Link
@@ -56,7 +60,7 @@ function MenuLink({ href, label, icon: Icon, hints, onClick }: MenuLinkProps) {
 }
 
 export function UserMenu({ user, onStartSelling, onSignedOut, onProfileNavigate }: UserMenuProps) {
-  const [isOnline, setIsOnline] = useState(user.isOnline ?? false);
+  const [isOnline, setIsOnline] = useState(getPresenceStatus(user.isOnline, user.onlineUntil));
   const [stayOnlineOpen, setStayOnlineOpen] = useState(false);
   const [selectedDuration, setSelectedDuration] = useState<1 | 2 | 3 | 4>(4);
   const [presenceBusy, setPresenceBusy] = useState(false);
@@ -65,8 +69,8 @@ export function UserMenu({ user, onStartSelling, onSignedOut, onProfileNavigate 
   const updateUser = useAuthStore((state) => state.updateUser);
 
   useEffect(() => {
-    setIsOnline(user.isOnline ?? false);
-  }, [user.isOnline]);
+    setIsOnline(getPresenceStatus(user.isOnline, user.onlineUntil));
+  }, [user.isOnline, user.onlineUntil]);
 
   useEffect(() => {
     const handlePresenceUpdate = (event: Event) => {

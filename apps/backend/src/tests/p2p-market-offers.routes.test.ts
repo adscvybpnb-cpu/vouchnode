@@ -133,4 +133,41 @@ describe('P2P market offer listing', () => {
     expect(mocks.offerFindMany.mock.calls[0][0].where).not.toHaveProperty('giftCardType');
   });
 
+  it('sorts online merchants above offline merchants regardless of recent activity', async () => {
+    const now = new Date();
+    const makeOffer = (id: string, userId: string, isOnline: boolean, lastLoginAt: Date) => ({
+      id,
+      type: 'BUY',
+      giftCardType: 'Any Gift Card',
+      cryptoAsset: 'USDT',
+      minLimit: new Prisma.Decimal(10),
+      maxLimit: new Prisma.Decimal(1_000),
+      exchangeRate: new Prisma.Decimal('0.8'),
+      terms: null,
+      updatedAt: now,
+      user: {
+        id: userId,
+        lastLoginAt,
+        isOnline,
+        onlineUntil: null,
+        sellerProfile: { shopName: userId },
+        wallets: [{ currency: 'USDT', availableBalance: new Prisma.Decimal(10) }],
+        profile: { username: userId, displayName: userId, avatarUrl: null },
+      },
+    });
+    mocks.offerFindMany.mockResolvedValue([
+      makeOffer('offline-offer', 'offline-merchant', false, now),
+      makeOffer('online-offer', 'online-merchant', true, new Date(now.getTime() - 60 * 60 * 1000)),
+    ]);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/offers?type=BUY&asset=USDT',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data.map((offer: { id: string }) => offer.id))
+      .toEqual(['online-offer', 'offline-offer']);
+  });
+
 });

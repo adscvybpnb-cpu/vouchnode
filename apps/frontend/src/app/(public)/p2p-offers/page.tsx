@@ -479,9 +479,12 @@ export default function P2POffersPage() {
     const handlePresenceUpdate = (event: Event) => {
       const payload = (event as CustomEvent<{ userId?: string; isOnline?: boolean }>).detail;
       if (!payload?.userId || typeof payload.isOnline !== 'boolean') return;
-      queryClient.setQueriesData<P2POffer[]>({ queryKey: ['p2p', 'offers'] }, (current) => current?.map((offer) => offer.userId === payload.userId
-        ? { ...offer, isOnline: payload.isOnline!, isActiveWithinFiveMinutes: payload.isOnline! || offer.isActiveWithinFiveMinutes }
-        : offer));
+      queryClient.setQueriesData<P2POffer[]>({ queryKey: ['p2p', 'offers'] }, (current) => current
+        ?.map((offer) => offer.userId === payload.userId
+          ? { ...offer, isOnline: payload.isOnline!, isActiveWithinFiveMinutes: payload.isOnline! || offer.isActiveWithinFiveMinutes }
+          : offer)
+        .sort((a, b) => Number(b.isOnline) - Number(a.isOnline)
+          || b.lastActiveAt.localeCompare(a.lastActiveAt)));
       queryClient.setQueryData<P2PProfile>(profileQueryKey, (current) => current && payload.userId === user?.id
         ? { ...current, isOnline: payload.isOnline! }
         : current);

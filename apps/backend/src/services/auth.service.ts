@@ -235,7 +235,6 @@ export class AuthService {
           lockedUntil: null,
           lastLoginAt: new Date(),
           lastLoginIp: ipAddress,
-          isOnline: true,
         }
       });
       return createdSession;

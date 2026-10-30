@@ -40,7 +40,6 @@ const profileUpdateSchema = z.object({
   githubUrl: z.string().url().nullable().optional(),
   websiteUrl: z.string().url().nullable().optional(),
 }).strict();
-
 export default async function walletRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authenticate);
 

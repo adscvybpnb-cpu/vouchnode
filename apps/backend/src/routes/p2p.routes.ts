@@ -438,8 +438,8 @@ export default async function p2pRoutes(app: FastifyInstance) {
         })))
         .filter((offer): offer is NonNullable<typeof offer> => offer !== null)
         .sort((a, b) => {
-          if (a.isActiveWithinFiveMinutes !== b.isActiveWithinFiveMinutes) {
-            return a.isActiveWithinFiveMinutes ? -1 : 1;
+          if (a.isOnline !== b.isOnline) {
+            return a.isOnline ? -1 : 1;
           }
           return b.lastActiveAt.getTime() - a.lastActiveAt.getTime();
         });

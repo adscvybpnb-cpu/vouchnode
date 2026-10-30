@@ -75,8 +75,16 @@ const start = async () => {
     const pendingDisputeCount = await P2POrderService.schedulePendingDisputeExpiries();
     app.log.info({ pendingUnpaidCount, pendingDisputeCount }, 'P2P expiry jobs scheduled');
 
+    const now = new Date();
+    await prisma.user.updateMany({
+      where: {
+        isOnline: true,
+        OR: [{ onlineUntil: null }, { onlineUntil: { lte: now } }],
+      },
+      data: { isOnline: false, onlineUntil: null, lastActiveAt: now },
+    });
     const timedPresenceUsers = await prisma.user.findMany({
-      where: { isOnline: true, onlineUntil: { gt: new Date() } },
+      where: { isOnline: true, onlineUntil: { gt: now } },
       select: { id: true, onlineUntil: true },
     });
     for (const user of timedPresenceUsers) schedulePresenceExpiry(user.id, user.onlineUntil);

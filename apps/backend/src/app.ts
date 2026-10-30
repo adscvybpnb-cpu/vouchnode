@@ -20,6 +20,7 @@ import { UserRole } from '@vouchnode/shared';
 // Route imports
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
+import presenceRoutes from './routes/presence.routes';
 import productRoutes from './routes/product.routes';
 import sellerRoutes from './routes/seller.routes';
 import orderRoutes from './routes/order.routes';
@@ -252,6 +253,7 @@ export const buildApp = async () => {
   // All API routes
   await app.register(authRoutes,         { prefix: `${apiPrefix}/auth` });
   await app.register(userRoutes,         { prefix: `${apiPrefix}/users` });
+  await app.register(presenceRoutes,     { prefix: `${apiPrefix}/users` });
   await app.register(productRoutes,      { prefix: `${apiPrefix}` });         // registers /products + /categories internally
   await app.register(sellerRoutes,       { prefix: `${apiPrefix}/sellers` });
   await app.register(orderRoutes,        { prefix: `${apiPrefix}/orders` });

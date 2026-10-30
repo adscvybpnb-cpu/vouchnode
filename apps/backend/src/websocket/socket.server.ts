@@ -46,8 +46,8 @@ export async function setupSocketServer(server: any) {
     },
     path: '/socket.io',
     transports: ['polling', 'websocket'],
-    pingInterval: 10_000,
-    pingTimeout: 20_000,
+    pingInterval: 2_000,
+    pingTimeout: 3_000,
   });
 
   const authenticateSocket = async (socket: Socket, next: (error?: Error) => void) => {
@@ -160,16 +160,23 @@ export function schedulePresenceExpiry(userId: string, onlineUntil: Date | null)
   const delay = Math.max(onlineUntil.getTime() - Date.now(), 0);
   const timer = setTimeout(() => {
     presenceExpiryTimers.delete(userId);
-    void prisma.user.update({
-      where: { id: userId },
-      data: { isOnline: false, onlineUntil: null, lastActiveAt: new Date() },
-    }).then(() => {
-      socketServer?.of('/presence').emit('presence:update', {
-        userId,
-        isOnline: false,
-        onlineUntil: null,
+    const hasActiveConnection = (presenceConnections.get(userId) ?? 0) > 0;
+    void (async () => {
+      const result = await prisma.user.updateMany({
+        where: { id: userId, onlineUntil },
+        data: {
+          isOnline: hasActiveConnection,
+          onlineUntil: null,
+          lastActiveAt: new Date(),
+        },
       });
-    }).catch((error) => console.error('Presence expiry update failed:', error));
+      if (result.count === 0) return;
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, isOnline: true, onlineUntil: true },
+      });
+      if (user) emitPresenceUpdate(user.id, user.isOnline, user.onlineUntil);
+    })().catch((error) => console.error('Presence expiry update failed:', error));
   }, delay);
   timer.unref();
   presenceExpiryTimers.set(userId, timer);
