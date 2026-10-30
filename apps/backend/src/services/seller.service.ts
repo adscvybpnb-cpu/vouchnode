@@ -3,6 +3,27 @@ import { prisma } from '../lib/prisma';
 import { SellerStatus, UserRole } from '@vouchnode/shared';
 import { maskUsername } from '../utils/privacy';
 import { NotificationService } from './notification.service';
+import { redis } from '../lib/redis';
+import { logger } from '../lib/logger';
+
+const sellerMetricsCacheKey = (userId: string) => `seller-profile-metrics:${userId}`;
+type SellerProfileMetrics = {
+  feedback: Array<{ good: number; neutral: number; poor: number; totalRatings: number; itemsSold: number }>;
+  completedSales: number;
+  averageRating: number;
+  reviewCount: number;
+  positiveRatingPercentage: number;
+};
+
+export async function invalidateSellerProfileMetrics(...userIds: string[]) {
+  const keys = [...new Set(userIds.filter(Boolean))].map(sellerMetricsCacheKey);
+  if (!keys.length || redis.status !== 'ready') return;
+  try {
+    await redis.del(...keys);
+  } catch (error) {
+    logger.warn({ error, userIds }, 'Unable to invalidate seller profile metrics cache');
+  }
+}
 
 class SellerApplicationError extends Error {
   constructor(message: string, readonly statusCode: number) {
@@ -12,7 +33,23 @@ class SellerApplicationError extends Error {
 }
 
 export class SellerService {
-  private static async getProfileMetrics(userId: string) {
+  private static async getProfileMetrics(userId: string): Promise<SellerProfileMetrics> {
+    const cacheKey = sellerMetricsCacheKey(userId);
+    if (redis.status === 'ready') {
+      try {
+        let timeout: ReturnType<typeof setTimeout> | undefined;
+        const cached = await new Promise<string | null>((resolve, reject) => {
+          timeout = setTimeout(() => reject(new Error('Seller profile metrics cache read timed out')), 100);
+          redis.get(cacheKey).then(resolve, reject);
+        }).finally(() => {
+          if (timeout) clearTimeout(timeout);
+        });
+        if (cached) return JSON.parse(cached) as SellerProfileMetrics;
+      } catch (error) {
+        logger.warn({ error, userId }, 'Unable to read seller profile metrics cache');
+      }
+    }
+
     const now = Date.now();
     const periods = [1, 3, 6, 12, null] as const;
     const feedback = await Promise.all(periods.map(async (months) => {
@@ -44,13 +81,19 @@ export class SellerService {
     });
     const completedSales = await prisma.order.count({ where: { sellerId: userId, status: 'COMPLETED' } });
     const positive = feedback[4].good + feedback[4].neutral + feedback[4].poor;
-    return {
+    const metrics = {
       feedback,
       completedSales,
       averageRating: Number(aggregate._avg.rating || 0),
       reviewCount: aggregate._count.id,
       positiveRatingPercentage: positive ? (feedback[4].good / positive) * 100 : 0,
     };
+    if (redis.status === 'ready') {
+      void redis.set(cacheKey, JSON.stringify(metrics), 'EX', 3600).catch((error) => {
+        logger.warn({ error, userId }, 'Unable to cache seller profile metrics');
+      });
+    }
+    return metrics;
   }
   static async autoApproveEligibleSellers() {
     const role = await prisma.role.findUnique({ where: { name: UserRole.SELLER } });
@@ -388,6 +431,7 @@ export class SellerService {
     const reviews = await prisma.review.findMany({
       where: { sellerId: seller.userId, isVisible: true },
       orderBy: { createdAt: 'desc' },
+      take: 50,
       select: {
         id: true,
         orderId: true,

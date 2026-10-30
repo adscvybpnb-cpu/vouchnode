@@ -12,13 +12,25 @@ export const messageService = {
     if (response.error) throw new Error(response.error);
     return response.data || [];
   },
-  async uploadEvidence(conversationId: string, file: File, visibility: 'EVERYONE' | 'ADMIN_ONLY' = 'EVERYONE') {
+  async uploadEvidence(
+    conversationId: string,
+    file: File,
+    visibility: 'EVERYONE' | 'ADMIN_ONLY' = 'EVERYONE',
+    onUploadProgress?: (percentage: number) => void,
+  ) {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await apiClient.upload<{ fileUrl: string; messageType: 'IMAGE' | 'VIDEO'; visibility: 'EVERYONE' | 'ADMIN_ONLY' }>(
-      `/messages/conversations/${encodeURIComponent(conversationId)}/media?visibility=${visibility}`,
-      formData
-    );
+    const endpoint = `/messages/conversations/${encodeURIComponent(conversationId)}/media?visibility=${visibility}`;
+    const response = onUploadProgress
+      ? await apiClient.uploadWithProgress<{ fileUrl: string; messageType: 'IMAGE' | 'VIDEO'; visibility: 'EVERYONE' | 'ADMIN_ONLY' }>(
+          endpoint,
+          formData,
+          onUploadProgress,
+        )
+      : await apiClient.upload<{ fileUrl: string; messageType: 'IMAGE' | 'VIDEO'; visibility: 'EVERYONE' | 'ADMIN_ONLY' }>(
+          endpoint,
+          formData,
+        );
     if (response.error) throw new Error(response.error);
     return response.data!;
   },

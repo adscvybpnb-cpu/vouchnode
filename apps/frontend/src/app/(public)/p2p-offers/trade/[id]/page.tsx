@@ -125,6 +125,7 @@ export default function P2PTradePage() {
     }
     setSubmitting(true);
     setTradeError('');
+    setShowConfirmation(false);
     try {
       const result = await p2pService.createOrder({ offerId: offer!.id, giftCardValueUSD: amountUSD });
       const orderPath = `/p2p-offers/order/${encodeURIComponent(result.order.id)}`;
@@ -145,6 +146,7 @@ export default function P2PTradePage() {
       } else {
         setTradeError(message);
       }
+      setShowConfirmation(true);
     } finally {
       setSubmitting(false);
     }
@@ -164,6 +166,38 @@ export default function P2PTradePage() {
     : offer.merchant?.displayName || offer.merchantName);
   const merchantUsername = cleanP2PName(ownProfile?.username || offer.merchant?.username || offer.username);
   const merchantAvatarUrl = ownProfile?.avatarUrl || offer.merchant?.avatarUrl || offer.avatarUrl;
+
+  if (submitting) {
+    return (
+      <main className="min-h-screen bg-[#07090f] px-4 py-6 text-white sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-4xl">
+          <header className="flex items-center gap-4 rounded-2xl border border-white/10 bg-[#11141d] p-5">
+            <P2PMerchantAvatar name={merchantName} avatarUrl={merchantAvatarUrl} className="h-14 w-14 rounded-full text-xl" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-lg font-bold">{merchantName}</p>
+              <p className="mt-1 flex items-center gap-2 text-sm text-emerald-300">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
+                Securing trade and opening chat...
+              </p>
+            </div>
+            <ShieldCheck className="h-6 w-6 text-emerald-300" />
+          </header>
+          <section className="mt-5 flex h-[min(65vh,36rem)] flex-col rounded-2xl border border-white/10 bg-[#11141d] p-5">
+            <div className="flex-1 space-y-4">
+              <div className="max-w-sm animate-pulse rounded-2xl rounded-bl-sm bg-white/10 p-4 text-sm text-slate-400">
+                Creating your protected trade room...
+              </div>
+              <div className="ml-auto h-12 w-2/3 max-w-sm animate-pulse rounded-2xl rounded-br-sm bg-emerald-500/10" />
+              <div className="h-12 w-1/2 max-w-sm animate-pulse rounded-2xl rounded-bl-sm bg-white/5" />
+            </div>
+            <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-slate-500">
+              Your messages will be available when escrow setup completes.
+            </div>
+          </section>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[#07090f] px-4 py-6 text-white sm:px-6 lg:px-8">

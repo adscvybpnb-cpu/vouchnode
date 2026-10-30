@@ -22,7 +22,11 @@ export default async function messageRoutes(app: FastifyInstance) {
 
   app.get('/conversations/:id/messages', async (req: any, res) => {
     try {
-      return res.send(await MessageService.getMessages(req.params.id, req.user.id, req.user.adminAuth === true));
+      const requestedPage = Number(req.query?.page);
+      const page = Number.isInteger(requestedPage) && requestedPage > 0
+        ? Math.min(requestedPage, 1000)
+        : 1;
+      return res.send(await MessageService.getMessages(req.params.id, req.user.id, req.user.adminAuth === true, page));
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to load messages';
       if (message === 'Conversation not found') return res.status(404).send({ message });

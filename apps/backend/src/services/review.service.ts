@@ -4,6 +4,7 @@ import { ProductRepository } from '../repositories/product.repository';
 import { SellerRepository } from '../repositories/seller.repository';
 import { NotificationService } from './notification.service';
 import { maskUsername } from '../utils/privacy';
+import { invalidateSellerProfileMetrics } from './seller.service';
 
 export class ReviewService {
   static async createFeedback(orderId: string, buyerId: string, data: { ratingType: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE', content?: string }) {
@@ -53,6 +54,7 @@ export class ReviewService {
       throw error;
     });
 
+    await invalidateSellerProfileMetrics(result.sellerId);
     await NotificationService.createNotification(
       result.sellerId,
       'REVIEW_RECEIVED',
@@ -86,6 +88,7 @@ export class ReviewService {
 
     await ProductRepository.updateRating(order.productId);
     await SellerRepository.updateStats(order.sellerId);
+    await invalidateSellerProfileMetrics(order.sellerId);
     const seller = await prisma.seller.findUnique({
       where: { userId: order.sellerId },
       select: { avgRating: true, reviewCount: true, positiveRatingPercentage: true, completedSales: true },

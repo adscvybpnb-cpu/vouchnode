@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { emitP2POfferBalanceUpdate, emitP2POrderEvent } from '../websocket/socket.server';
 import { NotificationService } from './notification.service';
+import { invalidateP2PProfileMetrics } from './p2p-profile.service';
 import {
   deactivateUnfundedP2POffers,
   getAvailableGiftCardValueAtPrice,
@@ -305,19 +306,7 @@ export class P2POrderService {
       const conversation = await tx.conversation.create({
         data: { p2pOrderId: order.id, buyerId, sellerId: offer.userId, isActive: true }
       });
-      const notification = {
-        type: 'ORDER_NEW' as const,
-        title: `New P2P trade order #${order.id} has started.`,
-        message: `New P2P trade order #${order.id} has started.`,
-        data: { orderId: order.id, conversationId: conversation.id, status: order.status },
-        link: `/p2p-offers/order/${order.id}`,
-        dedupeKey: `p2p-order:${order.id}`
-      };
-      const [buyerNotification, sellerNotification] = await Promise.all([
-        NotificationService.createInTransaction(tx, { ...notification, userId: order.buyerId }),
-        NotificationService.createInTransaction(tx, { ...notification, userId: order.sellerId })
-      ]);
-      return { order, conversationId: conversation.id, notifications: [buyerNotification, sellerNotification] };
+      return { order, conversationId: conversation.id };
         }, { maxWait: 5000, timeout: 30000 });
       } catch (cause) {
         const serviceError = cause as ServiceError;
@@ -352,11 +341,24 @@ export class P2POrderService {
       emitP2POfferBalanceUpdate(initialOffer.userId, initialOffer.cryptoAsset);
     }
     this.scheduleUnpaidExpiry(result.order.id, result.order.paymentDeadline);
-    try {
-      result.notifications.forEach((notification) => NotificationService.emit(notification));
-    } catch (notificationError) {
+    const notification = {
+      type: 'ORDER_NEW' as const,
+      title: `New P2P trade order #${result.order.id} has started.`,
+      message: `New P2P trade order #${result.order.id} has started.`,
+      data: {
+        orderId: result.order.id,
+        conversationId: result.conversationId,
+        status: result.order.status,
+      },
+      link: `/p2p-offers/order/${result.order.id}`,
+      dedupeKey: `p2p-order:${result.order.id}`,
+    };
+    void Promise.all([
+      NotificationService.createNotification({ ...notification, userId: result.order.buyerId }),
+      NotificationService.createNotification({ ...notification, userId: result.order.sellerId }),
+    ]).catch((notificationError) => {
       console.error('P2P order notification failed:', notificationError);
-    }
+    });
     return result;
   }
 
@@ -432,6 +434,7 @@ export class P2POrderService {
           content: trimmedContent
         }
       });
+    await invalidateP2PProfileMetrics(revieweeId);
     return { id: review.id, sentiment, content: review.content };
   }
 
@@ -623,6 +626,7 @@ export class P2POrderService {
       disputeId: result.disputeId,
       resolution
     });
+    await invalidateP2PProfileMetrics(result.buyerId, result.sellerId);
     const buyerWins = resolution === 'BUYER';
     await Promise.all([
       NotificationService.createNotification({
@@ -751,10 +755,17 @@ export class P2POrderService {
         NotificationService.createInTransaction(tx, { ...notificationInput, userId: order.buyerId }),
         NotificationService.createInTransaction(tx, { ...notificationInput, userId: order.sellerId })
       ]);
-      return { id: order.id, status: 'CANCELLED', notifications: [buyerNotification, sellerNotification] };
+      return {
+        id: order.id,
+        buyerId: order.buyerId,
+        sellerId: order.sellerId,
+        status: 'CANCELLED',
+        notifications: [buyerNotification, sellerNotification]
+      };
     }, { maxWait: 5000, timeout: 30000 });
     this.clearDisputeTimer(result.id);
     this.clearUnpaidTimer(result.id);
+    await invalidateP2PProfileMetrics(result.buyerId, result.sellerId);
     result.notifications.forEach((notification) => NotificationService.emit(notification));
     return { id: result.id, status: result.status };
   }
@@ -868,7 +879,13 @@ export class P2POrderService {
         NotificationService.createInTransaction(tx, { ...notificationInput, userId: order.buyerId }),
         NotificationService.createInTransaction(tx, { ...notificationInput, userId: order.sellerId })
       ]);
-      return { id: order.id, status: 'COMPLETED' as const, notifications: [buyerNotification, sellerNotification] };
+      return {
+        id: order.id,
+        buyerId: order.buyerId,
+        sellerId: order.sellerId,
+        status: 'COMPLETED' as const,
+        notifications: [buyerNotification, sellerNotification],
+      };
     }, { maxWait: 5000, timeout: 30000 });
     this.clearDisputeTimer(result.id);
     this.clearUnpaidTimer(result.id);

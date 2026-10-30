@@ -239,6 +239,70 @@ class ApiClient {
     });
   }
 
+  async uploadWithProgress<T>(endpoint: string, formData: FormData, onUploadProgress: (percentage: number) => void) {
+    const send = async (token: string | null) => new Promise<{ status: number; body: Record<string, any> | null }>((resolve, reject) => {
+      const request = new XMLHttpRequest();
+      request.open('POST', resolveApiUrl(endpoint, this.prefix));
+      request.withCredentials = true;
+      request.timeout = API_REQUEST_TIMEOUT_MS;
+      request.setRequestHeader('Accept', 'application/json');
+      if (token) request.setRequestHeader('Authorization', `Bearer ${token}`);
+      request.upload.onprogress = (event) => {
+        if (event.lengthComputable) onUploadProgress(Math.round((event.loaded / event.total) * 100));
+      };
+      request.onload = () => {
+        let body: Record<string, any> | null = null;
+        try {
+          const parsed: unknown = JSON.parse(request.responseText);
+          if (parsed && typeof parsed === 'object') body = parsed as Record<string, any>;
+        } catch {
+          body = null;
+        }
+        resolve({ status: request.status, body });
+      };
+      request.onerror = () => reject(new Error('Cannot connect to backend API server'));
+      request.ontimeout = () => reject(new Error('The upload timed out. Please try again.'));
+      request.onabort = () => reject(new Error('The upload was cancelled.'));
+      request.send(formData);
+    });
+
+    try {
+      let token = await getAccessToken();
+      let result = await send(token);
+      if (
+        isUnauthorizedResponse(result.status, typeof result.body?.message === 'string' ? result.body.message : null) &&
+        shouldRefreshAuthentication(this.prefix, endpoint)
+      ) {
+        const refreshedToken = await refreshAccessToken();
+        if (refreshedToken) {
+          token = refreshedToken;
+          result = await send(token);
+        } else if (token || useAuthStore.getState().isAuthenticated) {
+          clearAuthAndRedirect();
+        }
+      }
+
+      const message = typeof result.body?.message === 'string' ? result.body.message : null;
+      const error = result.status >= 200 && result.status < 300
+        ? null
+        : message || result.body?.error || 'Upload failed';
+      if (isUnauthorizedResponse(result.status, error) && (token || useAuthStore.getState().isAuthenticated)) {
+        clearAuthAndRedirect();
+      }
+      return {
+        data: error ? null : ((result.body?.data || result.body) as T),
+        error,
+        status: result.status,
+      } as ApiResponse<T>;
+    } catch (error) {
+      return {
+        data: null,
+        error: error instanceof Error ? error.message : 'Upload failed',
+        status: 0,
+      } as ApiResponse<T>;
+    }
+  }
+
   async upload<T>(endpoint: string, formData: FormData) {
     const token = await getAccessToken();
     const headers = new Headers({ Accept: 'application/json' });

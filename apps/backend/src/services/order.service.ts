@@ -14,6 +14,7 @@ import { NotificationService } from './notification.service';
 import { emitMarketplaceOrderEvent } from '../websocket/socket.server';
 import { requiresManualReview } from '../config/blockchain';
 import { ReferralService } from './referral.service';
+import { invalidateSellerProfileMetrics } from './seller.service';
 
 const BUYER_CONFIRMATION_PERIOD_MS = 48 * 60 * 60 * 1000;
 
@@ -1084,6 +1085,7 @@ export class OrderService {
       });
       return ReferralService.creditCompletedOrder(tx, order);
     });
+    await invalidateSellerProfileMetrics(order.sellerId);
     if (order.buyerTimerJobId) {
       try {
         await cancelJob(buyerConfirmationQueue, order.buyerTimerJobId);
@@ -1227,6 +1229,7 @@ export class OrderService {
       }
       await ReferralService.creditCompletedOrder(tx, currentOrder);
     });
+    await invalidateSellerProfileMetrics(order.sellerId);
     emitMarketplaceOrderEvent(orderId, 'order_updated', {
       orderId,
       status: 'COMPLETED',

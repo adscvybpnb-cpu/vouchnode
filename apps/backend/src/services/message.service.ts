@@ -29,7 +29,8 @@ export class MessageService {
     senderId: string,
     content: string,
     media?: { messageType: 'IMAGE' | 'VIDEO'; fileUrl: string; visibility?: 'EVERYONE' | 'ADMIN_ONLY' },
-    visibility: 'EVERYONE' | 'ADMIN_ONLY' = media?.visibility || 'EVERYONE'
+    visibility: 'EVERYONE' | 'ADMIN_ONLY' = media?.visibility || 'EVERYONE',
+    deferDisputeHandling = false
   ) {
     const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
     if (!conv) throw new Error('Conversation not found');
@@ -55,11 +56,7 @@ export class MessageService {
       
       return msg;
     });
-    const conversation = await prisma.conversation.findUnique({
-      where: { id: conversationId },
-      select: { orderId: true },
-    });
-    if (conversation?.orderId) await DisputeService.handleSellerMessage(conversation.orderId, senderId);
+    if (conv.orderId && !deferDisputeHandling) await DisputeService.handleSellerMessage(conv.orderId, senderId);
     return message;
   }
 
@@ -79,7 +76,7 @@ export class MessageService {
         buyer: { select: { id: true, profile: { select: { username: true, displayName: true, avatarUrl: true } } } },
         seller: { select: { id: true, profile: { select: { username: true, displayName: true, avatarUrl: true } } } },
         messages: {
-          orderBy: { createdAt: 'desc' },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           take: 1,
           select: {
             id: true,
@@ -114,7 +111,7 @@ export class MessageService {
     });
   }
 
-  static async getMessages(conversationId: string, userId: string, hasDedicatedAdminToken = false) {
+  static async getMessages(conversationId: string, userId: string, hasDedicatedAdminToken = false, page = 1) {
     const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
     if (!conv) throw new Error('Conversation not found');
     const account = await prisma.user.findUnique({
@@ -125,7 +122,7 @@ export class MessageService {
     if (!isAdmin && conv.buyerId !== userId && conv.sellerId !== userId) throw new Error('Unauthorized');
 
     try {
-      return await prisma.message.findMany({
+      const messages = await prisma.message.findMany({
         where: {
           conversationId,
           ...(isAdmin ? {} : {
@@ -135,11 +132,14 @@ export class MessageService {
             ]
           }),
         },
-        orderBy: { createdAt: 'asc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * 50,
+        take: 50,
         include: {
           sender: { select: { id: true, profile: { select: { username: true, displayName: true, avatarUrl: true } } } },
         },
       });
+      return messages.reverse();
     } catch (error) {
       const details = error instanceof Error ? error.message : String(error);
       const schemaMismatch = /visibility|column .* does not exist|P2022/i.test(details);
@@ -147,9 +147,11 @@ export class MessageService {
 
       console.error('Message visibility column is unavailable; using compatibility query. Run `pnpm --filter @vouchnode/backend db:push`.', error);
       try {
-        return await prisma.message.findMany({
+        const messages = await prisma.message.findMany({
           where: { conversationId },
-          orderBy: { createdAt: 'asc' },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          skip: (page - 1) * 50,
+          take: 50,
           select: {
             id: true,
             conversationId: true,
@@ -163,11 +165,14 @@ export class MessageService {
             sender: { select: { id: true, profile: { select: { username: true, displayName: true, avatarUrl: true } } } },
           },
         });
+        return messages.reverse();
       } catch (mediaSchemaError) {
         console.error('Message media columns are unavailable; using legacy text-message query. Run `pnpm --filter @vouchnode/backend db:push`.', mediaSchemaError);
-        return prisma.message.findMany({
+        const messages = await prisma.message.findMany({
           where: { conversationId },
-          orderBy: { createdAt: 'asc' },
+          orderBy: { createdAt: 'desc' },
+          skip: (page - 1) * 50,
+          take: 50,
           select: {
             id: true,
             conversationId: true,
@@ -179,6 +184,7 @@ export class MessageService {
             sender: { select: { id: true, profile: { select: { username: true, displayName: true, avatarUrl: true } } } },
           },
         });
+        return messages.reverse();
       }
     }
   }

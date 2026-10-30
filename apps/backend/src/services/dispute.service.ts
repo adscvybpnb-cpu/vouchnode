@@ -8,6 +8,7 @@ import { logger } from '../lib/logger';
 import { OrderService } from './order.service';
 import { ReferralService } from './referral.service';
 import { releasePendingSellerEscrow } from '../lib/order-escrow';
+import { invalidateSellerProfileMetrics } from './seller.service';
 
 export class DisputeService {
   static async escalateDispute(orderId: string, buyerId: string, reason: string, description: string, evidence?: { fileUrl: string; fileName: string; fileType: string; fileSize: number }) {
@@ -273,6 +274,7 @@ export class DisputeService {
         data: { disputeId, orderId: dispute.orderId }, link: `/seller/disputes/${disputeId}`,
       }),
     ]);
+    await invalidateSellerProfileMetrics(dispute.sellerId);
     return result;
   }
 

@@ -2,6 +2,8 @@ import { Namespace } from 'socket.io';
 import { MessageService } from '../services/message.service';
 import { NotificationService } from '../services/notification.service';
 import { prisma } from '../lib/prisma';
+import { logger } from '../lib/logger';
+import { DisputeService } from '../services/dispute.service';
 
 type MessageType = 'TEXT' | 'IMAGE' | 'VIDEO';
 type MessageVisibility = 'EVERYONE' | 'ADMIN_ONLY';
@@ -101,11 +103,13 @@ export function setupChatHandlers(chatNamespace: Namespace) {
     });
 
     socket.on('send_message', async (
-      data: { conversationId?: unknown; content?: unknown; text?: unknown; messageType?: unknown; fileUrl?: unknown; visibility?: unknown },
+      data: { conversationId?: unknown; content?: unknown; text?: unknown; messageType?: unknown; fileUrl?: unknown; visibility?: unknown; clientMessageId?: unknown },
       acknowledge?: (response: { ok: boolean; message?: unknown; error?: string }) => void,
     ) => {
       try {
         const conversationId = typeof data?.conversationId === 'string' ? data.conversationId : '';
+        const clientMessageId = typeof data?.clientMessageId === 'string' &&
+          data.clientMessageId.length <= 128 ? data.clientMessageId : undefined;
         const content = typeof data?.content === 'string' ? data.content.trim()
           : typeof data?.text === 'string' ? data.text.trim() : '';
         const messageType = data?.messageType === undefined ? 'TEXT' : data.messageType;
@@ -117,8 +121,20 @@ export function setupChatHandlers(chatNamespace: Namespace) {
           user.id,
           content,
           messageType === 'TEXT' ? undefined : { messageType, fileUrl: data.fileUrl as string, visibility },
-          visibility
+          visibility,
+          true
         );
+        const messagePayload = clientMessageId ? { ...msg, clientMessageId } : msg;
+        socket.join(conversationId);
+        if (visibility === 'EVERYONE') {
+          chatNamespace.to(conversationId).emit('new_message', messagePayload);
+        } else {
+          socket.emit('new_message', messagePayload);
+          chatNamespace.to('admin-chat').emit('new_message', messagePayload);
+        }
+        acknowledge?.({ ok: true, message: messagePayload });
+
+        void (async () => {
         const conversation = await prisma.conversation.findUnique({
           where: { id: conversationId },
           select: {
@@ -130,8 +146,12 @@ export function setupChatHandlers(chatNamespace: Namespace) {
             seller: { select: { profile: { select: { username: true, displayName: true } } } },
           },
         });
-        if (!conversation) throw new Error('Conversation not found');
+        if (!conversation) {
+          logger.warn({ conversationId, messageId: msg.id }, 'Message committed without conversation notification context');
+          return;
+        }
         if (conversation.orderId) {
+          await DisputeService.handleSellerMessage(conversation.orderId, user.id);
           const order = await prisma.order.findUnique({
             where: { id: conversation.orderId },
             select: { status: true, buyerReviewDeadline: true },
@@ -148,6 +168,10 @@ export function setupChatHandlers(chatNamespace: Namespace) {
         const recipientId = conversation.buyerId === user.id ? conversation.sellerId : conversation.buyerId;
         const senderProfile = conversation.buyerId === user.id ? conversation.buyer.profile : conversation.seller.profile;
         const senderName = senderProfile?.displayName || senderProfile?.username || 'New message';
+        if (conversation.p2pOrderId || conversation.orderId) {
+          const orderId = conversation.p2pOrderId || conversation.orderId;
+          if (orderId) chatNamespace.to(`order-${orderId}`).emit('new_message', messagePayload);
+        }
         if (visibility === 'EVERYONE') await NotificationService.createNotification({
           userId: recipientId,
           type: 'MESSAGE_NEW',
@@ -167,19 +191,9 @@ export function setupChatHandlers(chatNamespace: Namespace) {
               : `/chat?conversationId=${conversationId}`,
           dedupeKey: `message:${msg.id}`,
         });
-        // Join on send as well as join_conversation. This prevents a race where
-        // the sender emits immediately after connecting, before the join event
-        // has been processed.
-        socket.join(conversationId);
-        if (visibility === 'EVERYONE') {
-          chatNamespace.to(conversationId).emit('new_message', msg);
-          const orderId = conversation.p2pOrderId || conversation.orderId;
-          if (orderId) chatNamespace.to(`order-${orderId}`).emit('new_message', msg);
-        } else {
-          socket.emit('new_message', msg);
-          chatNamespace.to('admin-chat').emit('new_message', msg);
-        }
-        acknowledge?.({ ok: true, message: msg });
+        })().catch((error: unknown) => {
+          logger.error({ error, conversationId, messageId: msg.id }, 'Unable to send chat message notifications');
+        });
       } catch {
         acknowledge?.({ ok: false, error: 'Failed to send message' });
         socket.emit('error', 'Failed to send message');

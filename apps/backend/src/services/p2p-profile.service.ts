@@ -6,6 +6,8 @@ import {
 } from './p2p-pricing.service';
 import { normalizeAvatarUrl } from './avatar-url.service';
 import { emitP2POfferBalanceUpdate } from '../websocket/socket.server';
+import { redis } from '../lib/redis';
+import { logger } from '../lib/logger';
 
 type P2PTradeMetrics = {
   thirtyDayOrders: number;
@@ -16,7 +18,62 @@ type P2PTradeMetrics = {
   avgReleaseMinutes: number;
 };
 
+type CachedProfileMetrics = {
+  tradeMetrics: P2PTradeMetrics;
+  reviewCount: number;
+  goodReviewCount: number;
+};
+
+const profileMetricsCacheKey = (userId: string) => `p2p-profile-metrics:${userId}`;
+
+export async function invalidateP2PProfileMetrics(...userIds: string[]) {
+  const uniqueIds = [...new Set(userIds.filter(Boolean))];
+  if (!uniqueIds.length || redis.status !== 'ready') return;
+  try {
+    await redis.del(...uniqueIds.map(profileMetricsCacheKey));
+  } catch (error) {
+    logger.warn({ error, userIds: uniqueIds }, 'Unable to invalidate P2P profile metrics cache');
+  }
+}
+
 export class P2PProfileService {
+  private static async getCachedProfileMetrics(userId: string): Promise<CachedProfileMetrics> {
+    const cacheKey = profileMetricsCacheKey(userId);
+    if (redis.status === 'ready') {
+      try {
+        let timeout: ReturnType<typeof setTimeout> | undefined;
+        const cached = await new Promise<string | null>((resolve, reject) => {
+          timeout = setTimeout(() => reject(new Error('P2P profile metrics cache read timed out')), 100);
+          redis.get(cacheKey).then(resolve, reject);
+        }).finally(() => {
+          if (timeout) clearTimeout(timeout);
+        });
+        if (cached) {
+          const parsed = JSON.parse(cached) as CachedProfileMetrics;
+          if (parsed.tradeMetrics && Number.isInteger(parsed.reviewCount) && Number.isInteger(parsed.goodReviewCount)) {
+            return parsed;
+          }
+          logger.warn({ userId }, 'Ignoring invalid cached P2P profile metrics');
+        }
+      } catch (error) {
+        logger.warn({ error, userId }, 'Unable to read P2P profile metrics cache');
+      }
+    }
+
+    const [tradeMetrics, reviewCount, goodReviewCount] = await Promise.all([
+      this.getTradeMetrics(userId),
+      prisma.review.count({ where: { sellerId: userId, isVisible: true } }),
+      prisma.review.count({ where: { sellerId: userId, isVisible: true, rating: { gte: 4 } } }),
+    ]);
+    const value = { tradeMetrics, reviewCount, goodReviewCount };
+    if (redis.status === 'ready') {
+      void redis.set(cacheKey, JSON.stringify(value), 'EX', 3600).catch((error) => {
+        logger.warn({ error, userId }, 'Unable to cache P2P profile metrics');
+      });
+    }
+    return value;
+  }
+
   private static async getAverageReleaseMinutesForUsers(userIds: string[]) {
     const rows = await prisma.$queryRaw<Array<{ sellerId: string; averageMinutes: number | null }>>(Prisma.sql`
       SELECT
@@ -212,14 +269,13 @@ export class P2PProfileService {
         depositSessions: { where: { status: 'COMPLETED' }, select: { id: true } },
         p2pOffers: { where: { isActive: true }, orderBy: { updatedAt: 'desc' } },
         reviewsReceived: {
-          where: { isVisible: true }, orderBy: { createdAt: 'desc' },
+          where: { isVisible: true }, orderBy: { createdAt: 'desc' }, take: 20,
           select: { id: true, rating: true, content: true, createdAt: true, reviewer: { select: { profile: { select: { username: true } } } } }
         }
       }
     });
     if (!user) return null;
-    const tradeMetrics = await P2PProfileService.getTradeMetrics(userId);
-    const goodReviews = user.reviewsReceived.filter((review) => review.rating >= 4);
+    const profileMetrics = await P2PProfileService.getCachedProfileMetrics(userId);
     return {
       id: userId,
       username: user.profile?.username || 'P2P Merchant',
@@ -235,11 +291,14 @@ export class P2PProfileService {
         hasP2PInsuranceDeposit: false
       },
       stats: {
-        ...tradeMetrics,
-        positiveRating: user.reviewsReceived.length ? (goodReviews.length / user.reviewsReceived.length) * 100 : 0,
+        ...profileMetrics.tradeMetrics,
+        positiveRating: profileMetrics.reviewCount
+          ? (profileMetrics.goodReviewCount / profileMetrics.reviewCount) * 100
+          : 0,
         avgPaymentMinutes: user.profile?.avgPaymentSpeedMins || 0,
         accountAgeDays: Math.floor((Date.now() - user.createdAt.getTime()) / (24 * 60 * 60 * 1000)),
-        goodReviews: goodReviews.length, badReviews: user.reviewsReceived.length - goodReviews.length
+        goodReviews: profileMetrics.goodReviewCount,
+        badReviews: profileMetrics.reviewCount - profileMetrics.goodReviewCount,
       },
       ads: user.p2pOffers.map((offer) => ({
         id: offer.id, asset: offer.cryptoAsset, price: Number(offer.exchangeRate), side: offer.type,

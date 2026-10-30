@@ -2,12 +2,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   userFindUnique: vi.fn(),
+  reviewCount: vi.fn(),
 }));
 
 vi.mock('../lib/prisma', () => ({
   prisma: {
     user: { findUnique: mocks.userFindUnique },
+    review: { count: mocks.reviewCount },
   },
+}));
+
+vi.mock('../lib/redis', () => ({
+  redis: { status: 'end', get: vi.fn(), set: vi.fn(), del: vi.fn() },
 }));
 
 import { P2PProfileService } from '../services/p2p-profile.service';
@@ -15,6 +21,7 @@ import { P2PProfileService } from '../services/p2p-profile.service';
 describe('P2P merchant profile names', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.reviewCount.mockImplementation(async ({ where }: { where: { rating?: { gte: number } } }) => where.rating ? 0 : 0);
     mocks.userFindUnique.mockResolvedValue({
       emailVerified: true,
       kycStatus: 'APPROVED',
