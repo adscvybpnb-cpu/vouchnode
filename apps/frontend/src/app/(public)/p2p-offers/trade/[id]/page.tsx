@@ -163,7 +163,7 @@ export default function P2PTradePage() {
               <label className="text-sm font-semibold text-slate-300">Estimated Crypto ({offer.cryptoCurrency})<input type="text" value={cryptoAmount} readOnly placeholder="Calculating live quote..." className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 p-4 text-lg text-emerald-300 outline-none" /></label>
             </div>
             <p className="mt-3 text-xs text-slate-500">Final payout and crypto amount are calculated and locked by the server using its live spot quote when you confirm.</p>
-            <p className="mt-4 text-xs text-slate-500">Limits: {offer.minLimit.toFixed(2)} - {(offer.effectiveMax ?? offer.maxLimit).toFixed(2)} USD · Avg. Release Time: {offer.avgReleaseMinutes > 0 ? `${offer.avgReleaseMinutes} mins` : 'No completed trades'}</p>
+            <p className="mt-4 text-xs text-slate-500">Limits: {offer.minLimit.toFixed(2)} - {(offer.effectiveMax ?? offer.maxLimit).toFixed(2)} USD</p>
             {tradeError && <p className="mt-4 text-sm text-red-300">{tradeError}</p>}
             <button type="button" onClick={() => void initiateTrade()} disabled={submitting} className="mt-8 w-full rounded-xl bg-blue-500 px-5 py-4 text-lg font-bold text-white transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:opacity-50">{submitting ? 'Starting trade...' : `${offer.tradeType === 'BUY' ? 'Buy Crypto' : 'Sell Crypto'} with 0 fees`}</button>
           </section>
@@ -172,6 +172,14 @@ export default function P2PTradePage() {
               <h2 className="text-lg font-bold">Trading Information</h2>
               <div className="mt-5 divide-y divide-white/5">
                 <div className="flex justify-between gap-4 py-4 text-sm"><span className="text-slate-500">Payment Window</span><span className="font-semibold text-white">30 minutes</span></div>
+                <div className="flex items-center justify-between gap-4 py-4">
+                  <span className="text-sm font-semibold text-slate-300">Avg. Release Time</span>
+                  <span className="text-base font-bold text-white">
+                    {offer.avgReleaseMinutes > 0
+                      ? `${offer.avgReleaseMinutes} ${offer.avgReleaseMinutes === 1 ? 'min' : 'mins'}`
+                      : 'No completed trades'}
+                  </span>
+                </div>
                 <div className="flex justify-between gap-4 py-4 text-sm"><span className="text-slate-500">Payment Method</span><span className="text-right font-semibold text-white">{offer.giftCardType}</span></div>
                 <div className="flex justify-between gap-4 py-4 text-sm"><span className="text-slate-500">Asset</span><span className="font-semibold text-white">{offer.cryptoCurrency}</span></div>
               </div>
